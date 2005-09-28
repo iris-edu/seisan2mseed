@@ -5,11 +5,8 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2005.270
+ * modified 2005.271
  ***************************************************************************/
-
-/* Define _LARGEFILE_SOURCE to get ftello on some systems (Linux) */
-#define _LARGEFILE_SOURCE 1
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,7 +17,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.1"
+#define VERSION "0.2"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -188,10 +185,10 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
   
   char *cat, *mouse;
 
-  char uctimeflag;
+  char uctimeflag = 0;
   
   char gainstr[15];
-  char gainflag;
+  char gainflag = 0;
   double gain = 1.0;
   
   off_t filepos;
@@ -221,7 +218,7 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
   while ( ! done )
     {
       /* Get current file position */
-      filepos = ftello (ifp);
+      filepos = lmp_ftello (ifp);
       
       /* Read next record length */
       if ( (readlen = fread (&reclen, 4, 1, ifp)) < 1 )
@@ -388,17 +385,32 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	      fprintf (stderr, "[%s] Error adding samples to TraceGroup\n", seisanfile);
 	    }
 	  
-	  /* Create an MSrecord template for the Trace if requested by copying
-	   * the current MSrecord holder and adding a blockette 100. */
-	  if ( srateblkt && ! mst->private )
+	  /* Create an MSrecord template for the Trace by copying the current holder */
+	  if ( ! mst->private )
+	    mst->private = malloc (sizeof(MSrecord));
+	  memcpy (mst->private, msr, sizeof(MSrecord));
+	  
+	  /* If a blockette 100 is requested add it */
+	  if ( srateblkt )
 	    {
-	      mst->private = malloc (sizeof(MSrecord));
-	      memcpy (mst->private, msr, sizeof(MSrecord));
-	      
 	      memset (&Blkt100, 0, sizeof(struct blkt_100_s));
 	      Blkt100.samprate = (float) msr->samprate;
 	      msr_addblockette ((MSrecord *) mst->private, (char *) &Blkt100,
 				sizeof(struct blkt_100_s), 100, 0);
+	    }
+	  
+	  /* Set the questionable time tag bit if the time is uncertain */
+	  if ( uctimeflag )
+	    {
+	      /* Create a FSDH for the template if needed */
+	      if ( ! ((MSrecord *)mst->private)->fsdh )
+		{
+		  ((MSrecord *)mst->private)->fsdh = malloc (sizeof(struct fsdh_s));
+		  memset (((MSrecord *)mst->private)->fsdh, 0, sizeof(struct fsdh_s));
+		}
+	      
+	      /* Set bit 7 in the data quality flags */
+	      ((MSrecord *)mst->private)->fsdh->dq_flags |= 0x80;
 	    }
 	  
 	  /* Cleanup and reset state */

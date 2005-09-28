@@ -1,2 +1,7 @@
+2005.271: 0.2
+	- Update to libmseed 1.3 with support for Win32.
+	- Set bit 7 in the data quality flags (time tag questionable)
+	for any Trace where the input data has an "uncertain time" flag.
+
 2005.270: 0.1
 	- Initial version.
