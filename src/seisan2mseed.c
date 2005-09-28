@@ -8,6 +8,9 @@
  * modified 2005.270
  ***************************************************************************/
 
+/* Define _LARGEFILE_SOURCE to get ftello on some systems (Linux) */
+#define _LARGEFILE_SOURCE 1
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -366,7 +369,7 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  /* Swap data samples if needed */
 	  if ( swapflag )
 	    {
-	      int32_t *sampptr = (int32_t *) &record;
+	      int32_t *sampptr = (int32_t *) record;
 	      int32_t numsamples = msr->numsamples;
 	      
 	      while (numsamples--)
