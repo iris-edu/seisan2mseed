@@ -1,3 +1,9 @@
+2005.272: 0.3
+	- Add parsing of format <= 6.0 PC files.
+	- Pack data as it is read in, the output will be interleaved if
+	multiple channels are in the input, but the timing flags will be
+	set better this way and the converter will scale much better.
+
 2005.271: 0.2
 	- Update to libmseed 1.3 with support for Win32.
 	- Add Makefiles for Win32 except for base Makefile.win for nmake.

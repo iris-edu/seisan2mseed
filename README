@@ -1,7 +1,5 @@
 
-seisan2mseed - convert SeisAn (ver. >= 7.0) waveform data to Mini-SEED.
-
-Earlier SeisAn formats are not supported.
+seisan2mseed - convert SeisAn waveform data to Mini-SEED.
 
 -- Building/Installing --
 

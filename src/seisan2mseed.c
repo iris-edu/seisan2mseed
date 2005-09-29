@@ -1,11 +1,11 @@
 /***************************************************************************
  * seisan2mseed.c
  *
- * Simple waveform data conversion from SeisAn (ver >= 7.0) to Mini-SEED.
+ * Simple waveform data conversion from SeisAn to Mini-SEED.
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2005.271
+ * modified 2005.272
  ***************************************************************************/
 
 #include <stdio.h>
@@ -21,7 +21,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.2"
+#define VERSION "0.3"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -30,8 +30,9 @@ struct listnode {
   struct listnode *next;
 };
 
+static void packtraces (flag flush);
 static int seisan2group (char *seisanfile, TraceGroup *mstg);
-static char swaptest (int32_t testint, int32_t value, char *message);
+static int detectformat (FILE *ifp, char *formatflag, char *swapflag, char *seisanfile);
 static char *translatechan (char *component);
 static int parameter_proc (int argcount, char **argvec);
 static char *getoptval (int argcount, char **argvec, int argopt);
@@ -56,17 +57,15 @@ struct listnode *filelist = 0;
 /* A list of component to channel translations */
 struct listnode *chanlist = 0;
 
+static TraceGroup *mstg = 0;
+
+static int packedsamples = 0;
+static int packedrecords = 0;
+
 int
 main (int argc, char **argv)
 {
   struct listnode *flp;
-  TraceGroup *mstg = 0;
-  Trace *mst;
-
-  int packedsamples = 0;
-  int trpackedsamples = 0;
-  int packedrecords = 0;
-  int trpackedrecords = 0;
   
 #ifndef WIN32
   /* Signal handling, use POSIX calls with standardized semantics */
@@ -123,25 +122,7 @@ main (int argc, char **argv)
       flp = flp->next;
     }
 
-  /* Pack data into Mini-SEED records using per-Trace templates */
-  packedrecords = 0;
-  mst = mstg->traces;
-  while ( mst )
-    {
-      trpackedrecords = mst_pack (mst, &record_handler, packreclen, encoding, byteorder,
-				  &trpackedsamples, 1, verbose-1, (MSrecord *) mst->private);
-      if ( trpackedrecords < 0 )
-	{
-	  fprintf (stderr, "Error packing data\n");
-	}
-      else
-	{
-	  packedrecords += trpackedrecords;
-	  packedsamples += trpackedsamples;
-	}
-      
-      mst = mst->next;
-    }
+  packtraces (1);
   
   fprintf (stderr, "Packed %d trace(s) of %d samples into %d records\n",
 	   mstg->numtraces, packedsamples, packedrecords);
@@ -154,6 +135,40 @@ main (int argc, char **argv)
   
   return 0;
 }  /* End of main() */
+
+
+/***************************************************************************
+ * packtraces:
+ *
+ * Pack all traces in a group using per-Trace templates.
+ *
+ * Returns 0 on success, and -1 on failure
+ ***************************************************************************/
+static void
+packtraces (flag flush)
+{
+  Trace *mst;
+  int trpackedsamples = 0;
+  int trpackedrecords = 0;
+  
+  mst = mstg->traces;
+  while ( mst )
+    {
+      trpackedrecords = mst_pack (mst, &record_handler, packreclen, encoding, byteorder,
+				  &trpackedsamples, flush, verbose-2, (MSrecord *) mst->private);
+      if ( trpackedrecords < 0 )
+	{
+	  fprintf (stderr, "Error packing data\n");
+	}
+      else
+	{
+	  packedrecords += trpackedrecords;
+	  packedsamples += trpackedsamples;
+	}
+      
+      mst = mst->next;
+    }
+}  /* End of packtraces() */
 
 
 /***************************************************************************
@@ -175,33 +190,39 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
   char *record = 0;
   size_t recordbufsize = 0;
   
-  int32_t reclen;
-  int32_t reclenmirror;
+  char swapflag = -1;
+  char formatflag = 0;  /* 1: PC SeisAn <= 6.0, 4: SeisAn >= 7.0 */
+  uint8_t reclen1 = 0;
+  uint8_t reclenmirror1 = 0;
+  uint32_t reclen4 = 0;
+  uint32_t reclenmirror4 = 0;
+  unsigned int reclen = 0;
+  off_t filepos;
   
-  size_t readoff;
   size_t readlen;
   
+  char expectheader = 1;
+  char cheader[1040];
+  int cheaderlen = 0;
+  
+  char expectdata = 0;
+  char *data = 0;
+  int datalen = 0;
+  int maxdatalen = 0;
+  int expectdatalen = 0;
+  
   char component[5];
-
   long year;
   char timestr[30];
   char ratestr[10];
   char sampstr[10];
-  
-  char *cat, *mouse;
-
   char uctimeflag = 0;
-  
   char gainstr[15];
   char gainflag = 0;
   double gain = 1.0;
   
-  off_t filepos;
-
-  char swapflag = -1;
-  char expectdata = 0;
-  char done;
-
+  char *cat, *mouse;
+  
   /* Open input file */
   if ( (ifp = fopen (seisanfile, "rb")) == NULL )
     {
@@ -217,33 +238,76 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
     }
   
   /* Read a record at a time */
-  readoff = 0;
   readlen = 0;
-  done = 0;
-  while ( ! done )
+  for (;;)
     {
       /* Get current file position */
       filepos = lmp_ftello (ifp);
       
-      /* Read next record length */
-      if ( (readlen = fread (&reclen, 4, 1, ifp)) < 1 )
+      /* Detect format */
+      if ( ! formatflag )
 	{
-	  if ( ferror(ifp) )
-	    fprintf (stderr, "Error reading file %s\n", seisanfile);
-	  break;
+	  if ( detectformat (ifp, &formatflag, &swapflag, seisanfile) )
+	    {
+	      if ( ferror(ifp) )
+		fprintf (stderr, "Error reading file %s: %s\n",
+			 seisanfile, strerror(errno));
+	      else
+		fprintf (stderr, "Error detecting data format of %s\n", seisanfile);
+	      break;
+	    }
+	  
+	  /* Read the signature character for formatflag == 1, it's not needed. */
+	  if ( formatflag == 1 )
+	    fread (&reclen1, 1, 1, ifp);
+	  
+	  if ( verbose > 1 )
+	    {
+	      if ( formatflag == 1 )
+		fprintf (stderr, "Detected PC <= 6.0 format for %s\n", seisanfile);
+	      else if ( formatflag == 4 )
+		fprintf (stderr, "Detected Sun/Linux and PC >= 7.0 format for %s\n", seisanfile);
+	      else
+		{
+		  fprintf (stderr, "Unknown format for %s\n", seisanfile);
+		  break;
+		}
+	      
+	      if ( swapflag == 0 )
+		fprintf (stderr, "Byte swapping not needed for %s\n", seisanfile);
+	      else
+		fprintf (stderr, "Byte swapping needed for %s\n", seisanfile);
+	    }
 	}
       
-      /* Test if byte swapping is needed */
-      if ( swapflag < 0 )
-	if ( (swapflag = swaptest (reclen, 80, seisanfile)) < 0 )
-	  break;
+      /* Read next record length */
+      if ( formatflag == 1 )
+	{
+	  if ( (readlen = fread (&reclen1, 1, 1, ifp)) < 1 )
+	    {
+	      if ( ferror(ifp) )
+		fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
+	      break;
+	    }
+	  reclen = reclen1;
+	}
+      if ( formatflag == 4 )
+	{
+	  if ( (readlen = fread (&reclen4, 4, 1, ifp)) < 1 )
+	    {
+	      if ( ferror(ifp) )
+		fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
+	      break;
+	    }
+	  
+	  if ( swapflag ) gswap4 ( &reclen4 );
+	  reclen = reclen4;
+	}
       
-      if ( swapflag ) gswap4 ( &reclen );
-      
-      if ( verbose > 1 )
+      if ( verbose > 2 )
 	fprintf (stderr, "Reading next record of length %d bytes from offset %lld\n",
 		 reclen, (long long) filepos);
-
+      
       /* Make sure enough memory is available */
       if ( reclen > recordbufsize )
 	{
@@ -267,52 +331,90 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  break;
 	}
       
-      /* Read previous record length */
-      if ( (readlen = fread (&reclenmirror, 4, 1, ifp)) < 1 )
+      /* Read record length mirror at the end of the record */
+      if ( formatflag == 1 )
 	{
-	  if ( ferror(ifp) )
-	    fprintf (stderr, "Error reading file %s\n", seisanfile);
-	  break;
+	  if ( (readlen = fread (&reclenmirror1, 1, 1, ifp)) < 1 )
+	    {
+	      if ( ferror(ifp) )
+		fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
+	      break;
+	    }
+	  if ( reclen1 != reclenmirror1 )
+	    {
+	      fprintf (stderr, "At byte offset %lld in %s:\n", (long long) filepos, seisanfile);
+	      fprintf (stderr, "  Next and previous record length values do not match: %d != %d\n",
+		       reclen1, reclenmirror1);
+	      break;
+	    }
+	}
+      if ( formatflag == 4 )
+	{
+	  if ( (readlen = fread (&reclenmirror4, 4, 1, ifp)) < 1 )
+	    {
+	      if ( ferror(ifp) )
+		fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
+	      break;
+	    }
+	  if ( swapflag ) gswap4 ( &reclenmirror4 );
+	  if ( reclen4 != reclenmirror4 )
+	    {
+	      fprintf (stderr, "At byte offset %lld in %s:\n", (long long) filepos, seisanfile);
+	      fprintf (stderr, "  Next and previous record length values do not match: %d != %d\n",
+		       reclen4, reclenmirror4);
+	      break;
+	    }
 	}
       
-      if ( swapflag ) gswap4 ( &reclenmirror );
-      
-      if ( reclen != reclenmirror )
+      /* Expecting a channel header:
+       * Either the channel header is starting (first char is space)
+       * Or we are already reading it (cheaderlen != 0) */
+      if ( expectheader && (cheaderlen != 0 || *record != ' ') )
 	{
-	  fprintf (stderr, "At byte offset %lld in %s:\n", (long long) filepos, seisanfile);
-	  fprintf (stderr, "  Next and previous record length values do not match: %d != %d\n",
-		   reclen, reclenmirror);
-	  break;
-	}
-      
-      /* Check if this is a channel header: length == 1040 and first char not a space */
-      if ( ! expectdata && reclen == 1040 && *record != ' ' )
-	{
+	  /* Copy record into channel header buffer */
+	  if ( (reclen + cheaderlen) <= 1040 )
+	    {
+	      memcpy (cheader + cheaderlen, record, reclen);
+	      cheaderlen += reclen;
+	    }
+	  else
+	    {
+	      fprintf (stderr, "Record is too long for the expected channel header!\n");
+	      fprintf (stderr, "  cheaderlen: %d, reclen: %d (channel header should be 1040 bytes)\n",
+		       cheaderlen, reclen);
+	      break;
+	    }
+	  
+	  /* Continue reading records if channel header is not filled */
+	  if ( cheaderlen < 1040 )
+	    continue;
+	  
+	  /* Otherwise parse the header */
 	  ms_strncpclean (msr->network, forcenet, 2);
-	  ms_strncpclean (msr->station, record, 5);
+	  ms_strncpclean (msr->station, cheader, 5);
 	  ms_strncpclean (msr->location, forceloc, 2);
 	  
 	  /* Map component to SEED channel */
 	  memset (component, 0, sizeof(component));
-	  memcpy (component, record + 5, 4);
+	  memcpy (component, cheader + 5, 4);
 	  
 	  strcpy (msr->channel, translatechan(component));
 	  
 	  /* Construct time string */
 	  memset (timestr, 0, sizeof(timestr));
-	  memcpy (timestr, record + 9, 3);
+	  memcpy (timestr, cheader + 9, 3);
 	  year = strtoul (timestr, NULL, 10);
 	  year += 1900;
 	  sprintf (timestr, "%4ld", year);
 	  
 	  strcat (timestr, ",");
-	  strncat (timestr, record + 13, 3);
+	  strncat (timestr, cheader + 13, 3);
           strcat (timestr, ",");
-	  strncat (timestr, record + 23, 2);
+	  strncat (timestr, cheader + 23, 2);
           strcat (timestr, ":");
-	  strncat (timestr, record + 26, 2);
+	  strncat (timestr, cheader + 26, 2);
           strcat (timestr, ":");
-	  strncat (timestr, record + 29, 6);
+	  strncat (timestr, cheader + 29, 6);
 	  
 	  /* Remove spaces */
 	  cat = mouse = timestr;
@@ -325,23 +427,23 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 
 	  /* Parse sample rate */
 	  memset (ratestr, 0, sizeof(ratestr));
-	  memcpy (ratestr, record + 36, 7);
+	  memcpy (ratestr, cheader + 36, 7);
 	  msr->samprate = strtod (ratestr, NULL);
 	  
 	  /* Parse sample count */
           memset (sampstr, 0, sizeof(sampstr));
-          memcpy (sampstr, record + 43, 7);
+          memcpy (sampstr, cheader + 43, 7);
 	  msr->samplecnt = strtoul (sampstr, NULL, 10);
 
 	  /* Detect uncertain time */
-	  uctimeflag = ( *(record+28) == 'E' ) ? 1 : 0;
+	  uctimeflag = ( *(cheader+28) == 'E' ) ? 1 : 0;
 	  
 	  /* Detect gain */
-	  gainflag = ( *(record+75) == 'G' ) ? 1 : 0;
+	  gainflag = ( *(cheader+75) == 'G' ) ? 1 : 0;
 	  if ( gainflag )
 	    {
 	      memset (gainstr, 0, sizeof(gainstr));
-	      memcpy (gainstr, record + 147, 12);
+	      memcpy (gainstr, cheader + 147, 12);
 	      gain = strtod (gainstr, NULL);
 
 	      fprintf (stderr, "Gain of %f detected\n", gain);
@@ -355,23 +457,60 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 		     msr->samplecnt, msr->samprate);
 	  
 	  expectdata = 1;
+	  expectdatalen = msr->samplecnt * 4;
+	  expectheader = 0;
+	  cheaderlen = 0;
 	  continue;
 	}
       
+      /* Expecting data */
       if ( expectdata )
-	{  
-	  /* Add data to TraceGroup */
-	  msr->datasamples = record;
-	  msr->numsamples = reclen / 4;  /* Assuming 4-byte integers */
+	{
+	  /* Copy record into data buffer */
+	  if ( (reclen + datalen) <= expectdatalen )
+	    {
+	      /* Make sure enough memory is available */
+	      if ( (reclen + datalen) > maxdatalen )
+		{
+		  if ( (data = realloc (data, (reclen+datalen))) == NULL )
+		    {
+		      fprintf (stderr, "Error allocating memory for record\n");
+		      break;
+		    }
+		  else
+		    maxdatalen = reclen + datalen;
+		}
+	      
+	      memcpy (data + datalen, record, reclen);
+	      datalen += reclen;
+	    }
+	  else
+	    {
+	      fprintf (stderr, "Record is too long for the expected data!\n");
+	      fprintf (stderr, " datalen: %d, reclen: %d, expectdatalen: %d\n",
+		       datalen, reclen, expectdatalen);
+	      break;
+	    }
+	  
+	  /* Continue reading records if enough data has not been read */
+	  if ( datalen < expectdatalen )
+	    continue;
+	  
+	  /* Othrewise add data to TraceGroup */
+	  msr->datasamples = data;
+	  msr->numsamples = datalen / 4;  /* Assuming 4-byte integers */
 	  msr->sampletype = 'i';
 	  
 	  if ( msr->samplecnt != msr->numsamples )
-	    fprintf (stderr, "[%s] Number of samples in channel header != data section\n", seisanfile);
-	  
+	    {
+	      fprintf (stderr, "[%s] Number of samples in channel header != data section\n", seisanfile);
+	      fprintf (stderr, "  Header: %d, Data section: %d\n", msr->samplecnt, msr->numsamples);
+	    }
+
 	  /* Swap data samples if needed */
 	  if ( swapflag )
 	    {
-	      int32_t *sampptr = (int32_t *) record;
+	      int32_t *sampptr = (int32_t *) msr->datasamples;
 	      int32_t numsamples = msr->numsamples;
 	      
 	      while (numsamples--)
@@ -392,7 +531,10 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  
 	  /* Create an MSrecord template for the Trace by copying the current holder */
 	  if ( ! mst->private )
-	    mst->private = malloc (sizeof(MSrecord));
+	    {
+	      mst->private = malloc (sizeof(MSrecord));
+	    }
+
 	  memcpy (mst->private, msr, sizeof(MSrecord));
 	  
 	  /* If a blockette 100 is requested add it */
@@ -404,27 +546,35 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 				sizeof(struct blkt_100_s), 100, 0);
 	    }
 	  
-	  /* Set the questionable time tag bit if the time is uncertain */
-	  if ( uctimeflag )
+	  /* Create a FSDH for the template */
+	  if ( ! ((MSrecord *)mst->private)->fsdh )
 	    {
-	      /* Create a FSDH for the template if needed */
-	      if ( ! ((MSrecord *)mst->private)->fsdh )
-		{
-		  ((MSrecord *)mst->private)->fsdh = malloc (sizeof(struct fsdh_s));
-		  memset (((MSrecord *)mst->private)->fsdh, 0, sizeof(struct fsdh_s));
-		}
-	      
-	      /* Set bit 7 in the data quality flags */
-	      ((MSrecord *)mst->private)->fsdh->dq_flags |= 0x80;
+	      ((MSrecord *)mst->private)->fsdh = malloc (sizeof(struct fsdh_s));
+	      memset (((MSrecord *)mst->private)->fsdh, 0, sizeof(struct fsdh_s));
 	    }
+	  
+	  /* Set bit 7 (time tag questionable) in the data quality flags appropriately */
+	  if ( uctimeflag )
+	    ((MSrecord *)mst->private)->fsdh->dq_flags |= 0x80;
+	  else
+	    ((MSrecord *)mst->private)->fsdh->dq_flags &= ~(0x80);
+	  
+	  /* Pack any Traces that have enough data (i.e. do not flush the buffers) */
+	  packtraces (0);
 	  
 	  /* Cleanup and reset state */
 	  msr->datasamples = 0;
 	  msr = msr_init (msr);
 	  
+	  expectheader = 1;
 	  expectdata = 0;
+	  datalen = 0;
+	  continue;
 	}
     }
+  
+  if ( data )
+    free (data);
   
   if ( record )
     free (record);
@@ -437,37 +587,61 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 
 
 /***************************************************************************
- * swaptest:
- * Compare the test integer to the value, if it does not equate swap
- * the test integer and compare again.
+ * detectformat:
  *
- * Returns 0 if swapping is not needed, 1 if swapping is needed and -1
- * on failure.
+ * Detect the format and byte order of the specified SeisAn data file.
+ *
+ * Returns 0 on sucess and -1 on failure.
  ***************************************************************************/
-static char
-swaptest (int32_t testint, int32_t value, char *message)
+static int
+detectformat (FILE *ifp, char *formatflag, char *swapflag, char *seisanfile)
 {
+  int32_t ident;
   
-  if ( testint == value )
+  /* Read the first four bytes into ident */
+  if ( fread (&ident, 4, 1, ifp) < 1 )
     {
-      if ( verbose > 1 )
-	fprintf (stderr, "Swapping NOT needed for %s\n", message);
+      return -1;
+    }
+  
+  /* Rewind the file position pointer to the beginning */
+  rewind (ifp);
+  
+  /* If the first character is a 'K' assume the PC version <= 6.0
+   * format, otherwise test if the ident is (80) with either byte
+   * order which indicates the Sun/Linux and later PC versions
+   * format. */
+  if ( *(char*)&ident == 'K' )
+    {
+      *formatflag = 1;
+      
+      /* The PC <= 6.0 format should always be little-endian data */
+      *swapflag = (ms_bigendianhost()) ? 1 : 0;
+      
       return 0;
     }
   
-  gswap4 ( &testint );
-
-  if ( testint == value )
+  /* Test if the ident is 80 */
+  if ( ident == 80 )
     {
-      if ( verbose > 1 )
-	fprintf (stderr, "Swapping needed for %s\n", message);
-      return 1;
+      *formatflag = 4;
+      *swapflag = 0;
+
+      return 0;
     }
+  
+  /* Swap and test if the ident is 80 */
+  gswap4 ( &ident );
+  if ( ident == 80 )
+    {
+      *formatflag = 4;
+      *swapflag = 1;
 
-  fprintf (stderr, "Could not detect byte order of data for %s\n", message);
-
+      return 0;
+    }
+  
   return -1;
-}  /* End of swaptest() */
+}  /* End of detectformat() */
 
 
 /***************************************************************************
@@ -728,7 +902,7 @@ static void
 usage (void)
 {
   fprintf (stderr, "%s version: %s\n\n", PACKAGE, VERSION);
-  fprintf (stderr, "Convert SeisAn (>= 7.0) waveform data to Mini-SEED.\n\n");
+  fprintf (stderr, "Convert SeisAn waveform data to Mini-SEED.\n\n");
   fprintf (stderr, "Usage: %s [options] file1 file2 file3...\n\n", PACKAGE);
   fprintf (stderr,
 	   " ## Options ##\n"
