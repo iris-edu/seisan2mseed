@@ -13,7 +13,7 @@ cvars  = $+$(cvars)$- -DWIN32
 
 BIN = msi.exe 
 
-INCS = -I..
+INCS = -I..\libmseed
 
 all: $(BIN)
 

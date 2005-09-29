@@ -13,7 +13,7 @@ cvars  = $+$(cvars)$- -DWIN32
 
 BIN = seisan2mseed.exe
 
-INCS = -I..
+INCS = -I..\libmseed
 
 all: $(BIN)
 
