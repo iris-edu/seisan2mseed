@@ -99,7 +99,7 @@ main (int argc, char **argv)
         {
           ofp = stdout;
         }
-      else if ( (ofp = fopen (outputfile, "w")) == NULL )
+      else if ( (ofp = fopen (outputfile, "wb")) == NULL )
         {
           fprintf (stderr, "Cannot open output file: %s (%s)\n",
                    outputfile, strerror(errno));
@@ -203,7 +203,7 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
   char done;
 
   /* Open input file */
-  if ( (ifp = fopen (seisanfile, "r")) == NULL )
+  if ( (ifp = fopen (seisanfile, "rb")) == NULL )
     {
       fprintf (stderr, "Cannot open input file: %s (%s)\n",
 	       seisanfile, strerror(errno));
