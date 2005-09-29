@@ -1,5 +1,5 @@
 #
-# Wmake File for libmseed examples - For Watcom's wmake
+# Wmake File for seisan2mseed - For Watcom's wmake
 # Use 'wmake -f Makefile.wat'
 
 .BEFORE
