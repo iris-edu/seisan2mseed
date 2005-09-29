@@ -13,7 +13,11 @@
 #include <string.h>
 #include <time.h>
 #include <errno.h>
-#include <signal.h>
+
+#ifndef WIN32
+  #include <signal.h>
+  static void term_handler (int sig);
+#endif
 
 #include <libmseed.h>
 
@@ -35,7 +39,6 @@ static void addnode (struct listnode **listroot, char *key, char *data);
 static void addmapnode (struct listnode **listroot, char *mapping);
 static void record_handler (char *record, int reclen);
 static void usage (void);
-static void term_handler (int sig);
 
 static int   verbose     = 0;
 static int   packreclen  = -1;
@@ -65,6 +68,7 @@ main (int argc, char **argv)
   int packedrecords = 0;
   int trpackedrecords = 0;
   
+#ifndef WIN32
   /* Signal handling, use POSIX calls with standardized semantics */
   struct sigaction sa;
   
@@ -79,6 +83,7 @@ main (int argc, char **argv)
   sa.sa_handler = SIG_IGN;
   sigaction (SIGHUP, &sa, NULL);
   sigaction (SIGPIPE, &sa, NULL);
+#endif
 
   /* Process given parameters (command line and parameter file) */
   if (parameter_proc (argc, argv) < 0)
@@ -750,6 +755,7 @@ usage (void)
 }  /* End of usage() */
 
 
+#ifndef WIN32
 /***************************************************************************
  * term_handler:
  * Signal handler routine.
@@ -759,3 +765,4 @@ term_handler (int sig)
 {
   exit (0);
 }
+#endif
