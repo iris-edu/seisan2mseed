@@ -8,23 +8,17 @@
 
 cc     = wcc386
 cflags = -zq
-lflags = OPT quiet OPT map LIBRARY ..\libmseed.lib LIBRARY ws2_32.lib
+lflags = OPT quiet OPT map LIBRARY ..\libmseed\libmseed.lib
 cvars  = $+$(cvars)$- -DWIN32
 
-BINS = msi.exe msrepack.exe msview.exe
+BIN = msi.exe 
 
 INCS = -I..
 
-all: $(BINS)
+all: $(BIN)
 
-msi.exe:	msi.obj
-	wlink $(lflags) name msi file {msi.obj}
-
-msrepack.exe:	msrepack.obj
-	wlink $(lflags) name msrepack file {msrepack.obj}
-
-msview.exe:	msview.obj
-	wlink $(lflags) name msview file {msview.obj}
+seisan2mseed.exe:	seisan2mseed.obj
+	wlink $(lflags) name seisan2mseed file {seisan2mseed.obj}
 
 # Source dependencies:
 msi.obj:	msi.c
@@ -37,5 +31,4 @@ msview.obj:	msview.c
 
 # Clean-up directives:
 clean:	.SYMBOLIC
-	del *.obj *.map
-	del $(BINS)
+	del *.obj *.map $(BIN)
