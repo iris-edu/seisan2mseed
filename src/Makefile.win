@@ -1,34 +1,28 @@
 #
-# Wmake File for seisan2mseed - For Watcom's wmake
-# Use 'wmake -f Makefile.wat'
+# Nmake file for libmseed example client - Windows version
+# Use 'nmake -f Makefile.win'
+#
+# THIS HAS NEVER BEEN TESTED
+# Some modification might be required.
 
-.BEFORE
-	@set INCLUDE=.;$(%watcom)\H;$(%watcom)\H\NT
-	@set LIB=.;$(%watcom)\LIB386
+NODEBUG=1
 
-cc     = wcc386
-cflags = -zq
-lflags = OPT quiet OPT map LIBRARY ..\libmseed\libmseed.lib
-cvars  = $+$(cvars)$- -DWIN32
+!include <ntwin32.mak>
 
-BIN = msi.exe 
+INCS = /I..\libmseed
+LIBS = ..\libmseed\libmseed.lib
+BIN = ..\seisan2mseed.exe
 
-INCS = -I..\libmseed
+cflags = $(cflags) -DWIN32
 
 all: $(BIN)
 
-seisan2mseed.exe:	seisan2mseed.obj
-	wlink $(lflags) name seisan2mseed file {seisan2mseed.obj}
+$(BIN):	seisan2mseed.obj
+	link.exe /nologo /out:$(BIN) $(LIBS) seisan2mseed.obj
 
-# Source dependencies:
-msi.obj:	msi.c
-msrepack.obj:	msrepack.c
-msview.obj:	msview.c
-
-# How to compile sources:
 .c.obj:
-	$(cc) $(cflags) $(cvars) $(INCS) $[@ -fo=$@
+   $(cc) /nologo $(cflags) $(cdebug) $(cvarsmt) $(tflags) $(INCS) $<
 
-# Clean-up directives:
-clean:	.SYMBOLIC
-	del *.obj *.map $(BIN)
+# Clean-up directives
+clean:
+	-del a.out core *.o *.obj *% *~ $(BIN)

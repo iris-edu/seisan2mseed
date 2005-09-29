@@ -11,14 +11,14 @@ cflags = -zq
 lflags = OPT quiet OPT map LIBRARY ..\libmseed\libmseed.lib
 cvars  = $+$(cvars)$- -DWIN32
 
-BIN = seisan2mseed.exe
+BIN = ..\seisan2mseed.exe
 
 INCS = -I..\libmseed
 
 all: $(BIN)
 
-seisan2mseed.exe:	seisan2mseed.obj
-	wlink $(lflags) name seisan2mseed file {seisan2mseed.obj}
+$(BIN):	seisan2mseed.obj
+	wlink $(lflags) name $(BIN) file {seisan2mseed.obj}
 
 # Source dependencies:
 seisan2mseed.obj:	seisan2mseed.c
