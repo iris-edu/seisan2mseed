@@ -98,7 +98,7 @@ ms_readmsr (char *msfile, int reclen, off_t *fpos, int *last,
       else if ( (fp = fopen (msfile, "rb")) == NULL )
 	{
 	  fprintf (stderr, "Error opening file: %s (%s)\n",
-		   msfile, lmp_strerror ());
+		   msfile, strerror (errno));
 	  
 	  msr_free (&msr);
 	  

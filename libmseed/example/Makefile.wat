@@ -8,7 +8,7 @@
 
 cc     = wcc386
 cflags = -zq
-lflags = OPT quiet OPT map LIBRARY ..\libmseed.lib LIBRARY ws2_32.lib
+lflags = OPT quiet OPT map LIBRARY ..\libmseed.lib
 cvars  = $+$(cvars)$- -DWIN32
 
 BINS = msi.exe msrepack.exe msview.exe

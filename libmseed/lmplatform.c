@@ -29,28 +29,6 @@
 
 
 /***************************************************************************
- * lmp_strerror:
- *
- * Return a description of the last system error, in the case of Win32
- * this will be the last Windows Sockets error.
- ***************************************************************************/
-const char *
-lmp_strerror (void)
-{
-#if defined(LMP_WIN32)
-  static char errorstr[100];
-
-  snprintf (errorstr, sizeof(errorstr), "%d", WSAGetLastError());
-  return (const char *) errorstr;
-
-#else
-  return (const char *) strerror (errno);
-
-#endif
-}  /* End of lmp_strerror() */
-
-
-/***************************************************************************
  * lmp_ftello:
  *
  * Return the current file position for the specified descriptor using

@@ -1,8 +1,7 @@
 2005.271: 1.3
 	- Add lmplatform.[ch] to hold platform dependent defines
 	and portability routines.
-	- Create lmp_strerror() and lmp_ftello() portable routines
-	and use them where needed.
+	- Create lmp_ftello() portable routines and use it.
 	- Change all uses of fopen() to include a 'b' in the mode
 	in order to open files in "binary" mode on Win32.
 	- Add Makefile.wat for Open Watcom's wmake.
