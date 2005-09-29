@@ -1,5 +1,5 @@
 #
-# Nmake file for libmseed example client - Windows version
+# Nmake file for seisan2mseed - Windows version
 # Use 'nmake -f Makefile.win'
 #
 # THIS HAS NEVER BEEN TESTED
