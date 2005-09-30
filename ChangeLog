@@ -3,6 +3,7 @@
 	- Pack data as it is read in, the output will be interleaved if
 	multiple channels are in the input, but the timing flags will be
 	set better this way and the converter will scale much better.
+	- Remove signal handler, not needed.
 
 2005.271: 0.2
 	- Update to libmseed 1.3 with support for Win32.
