@@ -14,14 +14,9 @@
 #include <time.h>
 #include <errno.h>
 
-#ifndef WIN32
-  #include <signal.h>
-  static void term_handler (int sig);
-#endif
-
 #include <libmseed.h>
 
-#define VERSION "0.3"
+#define VERSION "0.4dev"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -67,23 +62,6 @@ main (int argc, char **argv)
 {
   struct listnode *flp;
   
-#ifndef WIN32
-  /* Signal handling, use POSIX calls with standardized semantics */
-  struct sigaction sa;
-  
-  sa.sa_flags = SA_RESTART;
-  sigemptyset (&sa.sa_mask);
-  
-  sa.sa_handler = term_handler;
-  sigaction (SIGINT, &sa, NULL);
-  sigaction (SIGQUIT, &sa, NULL);
-  sigaction (SIGTERM, &sa, NULL);
-  
-  sa.sa_handler = SIG_IGN;
-  sigaction (SIGHUP, &sa, NULL);
-  sigaction (SIGPIPE, &sa, NULL);
-#endif
-
   /* Process given parameters (command line and parameter file) */
   if (parameter_proc (argc, argv) < 0)
     return -1;
@@ -929,16 +907,3 @@ usage (void)
 	   " 11 : Steim 2 compression\n"
 	   "\n");
 }  /* End of usage() */
-
-
-#ifndef WIN32
-/***************************************************************************
- * term_handler:
- * Signal handler routine.
- ***************************************************************************/
-static void
-term_handler (int sig)
-{
-  exit (0);
-}
-#endif
