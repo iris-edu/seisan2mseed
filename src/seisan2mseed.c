@@ -888,6 +888,7 @@ usage (void)
 	   " -h             Show this usage message\n"
 	   " -v             Be more verbose, multiple flags can be used\n"
 	   " -S             Include SEED blockette 100 for very irrational sample rates\n"
+CHAD           " -A             Pack Mini-SEED as input data is read instead of reading all\n"
 	   " -n netcode     Specify the SEED network code, default is blank\n"
 	   " -l loccode     Specify the SEED location code, default is blank\n"
 	   " -r bytes       Specify record length in bytes for packing, default: 4096\n"
