@@ -1,3 +1,7 @@
+2005.277: 0.4
+	- Add option to specify the packing of data as it is read in.
+	There are pros and cons either way.
+
 2005.272: 0.3
 	- Add parsing of format <= 6.0 PC files.
 	- Pack data as it is read in, the output will be interleaved if

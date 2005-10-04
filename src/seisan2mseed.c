@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2005.272
+ * modified 2005.277
  ***************************************************************************/
 
 #include <stdio.h>
@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.4dev"
+#define VERSION "0.4"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -41,6 +41,7 @@ static int   packreclen  = -1;
 static int   encoding    = -1;
 static int   byteorder   = -1;
 static char  srateblkt   = 0;
+static char  contpack    = 0;
 static char *forcenet    = 0;
 static char *forceloc    = 0;
 static char *outputfile  = 0;
@@ -538,7 +539,8 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	    ((MSrecord *)mst->private)->fsdh->dq_flags &= ~(0x80);
 	  
 	  /* Pack any Traces that have enough data (i.e. do not flush the buffers) */
-	  packtraces (0);
+	  if ( contpack )
+	    packtraces (0);
 	  
 	  /* Cleanup and reset state */
 	  msr->datasamples = 0;
@@ -696,6 +698,10 @@ parameter_proc (int argcount, char **argvec)
       else if (strcmp (argvec[optind], "-S") == 0)
 	{
 	  srateblkt = 1;
+	}
+      else if (strcmp (argvec[optind], "-P") == 0)
+	{
+	  contpack = 1;
 	}
       else if (strcmp (argvec[optind], "-n") == 0)
 	{
@@ -888,7 +894,7 @@ usage (void)
 	   " -h             Show this usage message\n"
 	   " -v             Be more verbose, multiple flags can be used\n"
 	   " -S             Include SEED blockette 100 for very irrational sample rates\n"
-CHAD           " -A             Pack Mini-SEED as input data is read instead of reading all\n"
+           " -P             Pack Mini-SEED as input data is read instead of buffering all\n"
 	   " -n netcode     Specify the SEED network code, default is blank\n"
 	   " -l loccode     Specify the SEED location code, default is blank\n"
 	   " -r bytes       Specify record length in bytes for packing, default: 4096\n"
