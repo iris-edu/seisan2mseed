@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.4"
+#define VERSION "0.5"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -161,7 +161,7 @@ packtraces (flag flush)
 static int
 seisan2group (char *seisanfile, TraceGroup *mstg)
 {
-  FILE *ifp;
+  FILE *ifp = 0;
   MSrecord *msr = 0;
   Trace *mst;
   struct blkt_100_s Blkt100;
@@ -553,6 +553,8 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	}
     }
   
+  fclose (ifp);
+
   if ( data )
     free (data);
   

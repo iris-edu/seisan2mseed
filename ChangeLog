@@ -1,5 +1,8 @@
+2005.277: 0.5
+	- fclose the input files after reading them.
+
 2005.277: 0.4
-	- Add option to specify the packing of data as it is read in.
+	- Add option to perform the packing of data as it is read in.
 	There are pros and cons either way.
 
 2005.272: 0.3
