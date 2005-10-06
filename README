@@ -8,6 +8,9 @@ In most environments a simple 'make' will build the program.
 Using GCC, running 'make static' will compile a static version
 if possible.
 
+For Win32 (Windows) environments the included Makefile.wat files can
+be used with Open Watcom's wmake program.
+
 -- Licensing --
 
 This program is free software; you can redistribute it and/or modify
