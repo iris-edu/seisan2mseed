@@ -1,4 +1,4 @@
-.TH SEISAN2MSEED 1 2005/10/05
+.TH SEISAN2MSEED 1 2005/10/06
 .SH NAME
 SeisAn to Mini-SEED converter
 
@@ -21,9 +21,9 @@ an 'H' is substituted for the 2nd character (i.e. 'S__Z' -> 'SHZ').
 Other translations may be explicitly specified using the -T command
 line option.
 
-By default all created Mini-SEED records are written to stdout.  The
-output data may be re-directed to a file using the -o option.
-
+By default all data from a given input file is written to a file of
+the same name with a ".mseed" suffix.  The output data may be
+re-directed to a single file or stdout using the -o option.
 
 .SH OPTIONS
 
@@ -77,7 +77,10 @@ least significant byte first).  It is highly recommended to always
 create big-endian SEED.
 
 .IP "-o \fIoutfile\fP"
-Write all Mini-SEED records to \fIoutfile\fP instead of stdout.
+Write all Mini-SEED records to \fIoutfile\fP, if \fIoutfile\fP is a
+single dash (-) then all Mini-SEED output will go to stdout.  All
+diagnostic output from the program is written to stderr and should
+never get mixed with data going to stdout.
 
 .IP "-T \fIcomp=chan\fP"
 Specify an explicit component to channel mapping, this option may be
