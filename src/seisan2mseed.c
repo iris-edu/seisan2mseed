@@ -102,7 +102,7 @@ main (int argc, char **argv)
       flp = flp->next;
     }
 
-  /* Pack any remaining all data */
+  /* Pack any remaining, possibly all data */
   packtraces (1);
   
   fprintf (stderr, "Packed %d trace(s) of %d samples into %d records\n",
@@ -135,6 +135,12 @@ packtraces (flag flush)
   mst = mstg->traces;
   while ( mst )
     {
+      if ( mst->numsamples <= 0 )
+	{
+	  mst = mst->next;
+	  continue;
+	}
+      
       trpackedrecords = mst_pack (mst, &record_handler, packreclen, encoding, byteorder,
 				  &trpackedsamples, flush, verbose-2, (MSrecord *) mst->private);
       if ( trpackedrecords < 0 )
@@ -540,6 +546,13 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  else
 	    ((MSrecord *)mst->private)->fsdh->dq_flags &= ~(0x80);
 	  
+	  /* Unless buffering all files in memory pack any Traces now */
+	  if ( ! bufferall )
+	    {
+	      packtraces (1);
+	      mst_initgroup (mstg);
+	    }
+	  
 	  /* Cleanup and reset state */
 	  msr->datasamples = 0;
 	  msr = msr_init (msr);
@@ -550,13 +563,9 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  continue;
 	}
     }
-  
-  /* Unless buffering all files in memory pack any Traces now */
-  if ( ! bufferall )
-    packtraces (1);
-  
-  fclose (ifp);
     
+  fclose (ifp);
+  
   if ( data )
     free (data);
   
@@ -818,6 +827,10 @@ readlistfile (char *listfile)
   char lineformat;  /* 0 = simple text, 1 = dirf (filenr.lis) */
   int  filecnt = 0;
   int  nonspace;
+
+  int  filenr;
+  char filename[1024];
+  int  fields;
   
   /* Open the list file */
   if ( (fp = fopen (listfile, "rb")) == NULL )
@@ -845,11 +858,15 @@ readlistfile (char *listfile)
       ptr = line;
       while ( *ptr )
 	{
-	  if ( *ptr == '\r' || *ptr == '\n' )
-	    *ptr = '\0';
-	  
+	  if ( *ptr == '\r' || *ptr == '\n' || *ptr == '\0' )
+	    {
+	      *ptr = '\0';
+	      break;
+	    }
 	  else if ( *ptr != ' ' )
-	    nonspace++;
+	    {
+	      nonspace++;
+	    }
 	  
 	  ptr++;
 	}
@@ -858,28 +875,11 @@ readlistfile (char *listfile)
       if ( nonspace == 0 )
 	continue;
       
-      /* Trim all trailing spaces */
-      ptr = &line[sizeof(line)-1];
-      while ( ptr != line )
-	{
-	  if ( *ptr == ' ' )
-	    *ptr-- = '\0';
-	  
-	  else if ( *ptr == '\r' || *ptr == '\n' || *ptr == '\0' )
-	    ptr--;
-
-	  else
-	    break;
-	}
-      
       /* Detect line format by checking first character for # */
       lineformat = 0;
       ptr = line;
-      while ( (ptr - &line[0]) <= 5 )
+      while ( *ptr )
 	{
-	  if ( ! *ptr )
-	    break;
-
 	  if ( *ptr == ' ' )
 	    {
 	      ptr++;
@@ -897,18 +897,25 @@ readlistfile (char *listfile)
 	      break;
 	    }
 	}
-      
-      /* 'ptr' should now be pointing at the first non-space character */
+      /* 'ptr' should now point to the first non-space character */
       
       if ( ! *ptr )
 	continue;
       
       if ( lineformat == 0 )
 	{
-	  if ( verbose > 1 )
-	    fprintf (stderr, "Adding %s to input file list\n", ptr);
+	  fields = sscanf (ptr, "%s", filename);
 	  
-	  addnode (&filelist, NULL, ptr);
+	  if ( fields != 1 )
+	    {
+	      fprintf (stderr, "Error parsing filename from: %s\n", line);
+	      continue;
+	    }
+	  
+	  if ( verbose > 1 )
+	    fprintf (stderr, "Adding '%s' to input file list\n", filename);
+	  
+	  addnode (&filelist, NULL, filename);
 	  filecnt++;
 	  
 	  continue;
@@ -916,7 +923,22 @@ readlistfile (char *listfile)
       
       if ( lineformat == 1 )
 	{
-	}      
+	  fields = sscanf (ptr, "#%5d %s", &filenr, filename);
+	  
+	  if ( fields != 2 )
+	    {
+	      fprintf (stderr, "Error parsing file number and name from: %s\n", line);
+	      continue;
+	    }
+	  
+	  if ( verbose > 1 )
+	    fprintf (stderr, "Adding (%d) '%s' to input file list\n", filenr, filename);
+	  
+	  addnode (&filelist, NULL, filename);
+	  filecnt++;
+	  
+	  continue;
+	}
     }
 
   return filecnt;
@@ -1015,14 +1037,14 @@ usage (void)
 {
   fprintf (stderr, "%s version: %s\n\n", PACKAGE, VERSION);
   fprintf (stderr, "Convert SeisAn waveform data to Mini-SEED.\n\n");
-  fprintf (stderr, "Usage: %s [options] file1 file2 file3...\n\n", PACKAGE);
+  fprintf (stderr, "Usage: %s [options] file1 [file2 file3 ...]\n\n", PACKAGE);
   fprintf (stderr,
 	   " ## Options ##\n"
 	   " -V             Report program version\n"
 	   " -h             Show this usage message\n"
 	   " -v             Be more verbose, multiple flags can be used\n"
 	   " -S             Include SEED blockette 100 for very irrational sample rates\n"
-           " -B             Buffer data from all files before packing, default packs at EOF\n"
+           " -B             Buffer data before packing, default packs at end of each block\n"
 	   " -n netcode     Specify the SEED network code, default is blank\n"
 	   " -l loccode     Specify the SEED location code, default is blank\n"
 	   " -r bytes       Specify record length in bytes for packing, default: 4096\n"

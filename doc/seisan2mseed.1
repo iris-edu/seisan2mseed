@@ -1,0 +1,110 @@
+.TH MSI 1 2005/10/05
+.SH NAME
+SeisAn to Mini-SEED converter
+
+.SH SYNOPSIS
+.nf
+seisan2mseed [options] file1 [file2 file3 ...]
+
+.fi
+.SH DESCRIPTION
+\fBseisan2mseed\fP converts SeisAn waveform data files to Mini-SEED.
+One or more input files may be specified on the command line.  If an
+input file name is prefixed with an '@' character the file is assumed
+to contain a list of input data files, see \fILIST FILES\fP below.
+
+The default translation of SeisAn components to SEED channel codes is
+as follows: a 3 character SEED channel is composed of the first,
+second and fourth characters of the component; furthermore if the
+second character is a space and the first and fourth are not spaces
+an 'H' is substituted for the 2nd character (i.e. 'S__Z' -> 'SHZ').
+Other translations may be explicitly specified using the -T command
+line option.
+
+By default all created Mini-SEED records are written to stdout.  The
+output data may be re-directed to a file using the -o option.
+
+
+.SH OPTIONS
+
+.IP "-V         "
+Print program version and exit.
+
+.IP "-h         "
+Print program usage and exit.
+
+.IP "-v         "
+Be more verbose.  This flag can be used multiple times ("-v -v" or
+"-vv") for more verbosity.
+
+.IP "-S         "
+Include SEED blockette 100 in each output record with the sample rate
+in floating point format.  The basic format for storing sample rates
+in SEED data records is a rational approximation
+(numerator/denominator).  Precision will be lost if a given sample
+rate cannot be well approximated.  This option should be used in those
+cases.
+
+.IP "-B         "
+Buffer all input data into memory before packing it into Mini-SEED
+records.  The host computer must have enough memory to store all of
+the data.  By default the program will flush it's data buffers after
+each input block is read.
+
+.IP "-n \fInetcode\fP"
+Specify the SEED network code to use, if not specified the network
+code will be blank.  It is highly recommended to specify a network
+code.
+
+.IP "-l \fIloccode\fP"
+Specify the SEED location code to use, if not specified the location
+code will be blank.
+
+.IP "-r \fIbytes\fP"
+Specify the Mini-SEED record length in \fIbytes\fP, default is 4096.
+
+.IP "-e \fIencoding\fP"
+Specify the Mini-SEED data encoding format, default is 11 (Steim-2
+compression).  Other supported encoding formats include 10 (Steim-1
+compression), 1 (16-bit integers) and 3 (32-bit integers).  The 16-bit
+integers encoding should only be used if all data samples can be
+represented in 16 bits.
+
+.IP "-b \fIbyteorder\fP"
+Specify the Mini-SEED byte order, default is 1 (big-endian or most
+significant byte first).  The other option is 0 (little-endian or
+least significant byte first).  It is highly recommended to always
+create big-endian SEED.
+
+.IP "-o \fIoutfile\fP"
+Write all Mini-SEED records to \fIoutfile\fP instead of stdout.
+
+.IP "-T \fIcomp=chan\fP"
+Specify an explicit component to channel mapping, this option may be
+used several times (e.g. '-T SBIZ=SHZ -T SBIN=SHN -T SBIE=SHE').
+
+.SH LIST FILES
+If an input file is prefixed with an '@' character the file is assumed
+to contain a list of file for input.  The list can be either simple
+text, with one file per line, or the format created by the SeisAn dirf
+command (filenr.lis).
+
+An example of a simple test list:
+
+.nf
+2003-06-20-0643-41S.EDI___003
+2005-07-23-1452-04S.CER___030
+.fi
+
+An example of an equivalent list in the dirf (filenr.lis) format:
+
+.nf
+ #  1  2003-06-20-0643-41S.EDI___003
+ #  2  2005-07-23-1452-04S.CER___030
+.fi
+
+.SH AUTHOR
+.nf
+Chad Trabant
+IRIS Data Management Center
+.fi
