@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2005.278
+ * modified 2005.279
  ***************************************************************************/
 
 #include <stdio.h>
@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.5"
+#define VERSION "0.6"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -56,6 +56,7 @@ struct listnode *chanlist = 0;
 
 static TraceGroup *mstg = 0;
 
+static int packedtraces  = 0;
 static int packedsamples = 0;
 static int packedrecords = 0;
 
@@ -71,7 +72,7 @@ main (int argc, char **argv)
   /* Init TraceGroup */
   mstg = mst_initgroup (mstg);
   
-  /* Open the output file if specified otherwise stdout */
+  /* Open the output file if specified */
   if ( outputfile )
     {
       if ( strcmp (outputfile, "-") == 0 )
@@ -84,10 +85,6 @@ main (int argc, char **argv)
                    outputfile, strerror(errno));
           return -1;
         }
-    }
-  else
-    {
-      ofp = stdout;
     }
   
   /* Read input SeisAn files into TraceGroup */
@@ -104,9 +101,10 @@ main (int argc, char **argv)
 
   /* Pack any remaining, possibly all data */
   packtraces (1);
-  
+  packedtraces += mstg->numtraces;
+
   fprintf (stderr, "Packed %d trace(s) of %d samples into %d records\n",
-	   mstg->numtraces, packedsamples, packedrecords);
+	   packedtraces, packedsamples, packedrecords);
   
   /* Make sure everything is cleaned up */
   mst_freegroup (&mstg);
@@ -216,6 +214,20 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
       fprintf (stderr, "Cannot open input file: %s (%s)\n",
 	       seisanfile, strerror(errno));
       return -1;
+    }
+  
+  /* Open .mseed output file if needed */
+  if ( ! ofp )
+    {
+      char mseedoutputfile[1024];
+      snprintf (mseedoutputfile, sizeof(mseedoutputfile), "%s.mseed", seisanfile);
+      
+      if ( (ofp = fopen (mseedoutputfile, "wb")) == NULL )
+        {
+          fprintf (stderr, "Cannot open output file: %s (%s)\n",
+                   mseedoutputfile, strerror(errno));
+          return -1;
+        }
     }
   
   if ( ! (msr = msr_init(msr)) )
@@ -550,6 +562,7 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  if ( ! bufferall )
 	    {
 	      packtraces (1);
+	      packedtraces += mstg->numtraces;
 	      mst_initgroup (mstg);
 	    }
 	  
@@ -563,8 +576,14 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  continue;
 	}
     }
-    
+  
   fclose (ifp);
+  
+  if ( ofp  && ! outputfile )
+    {
+      fclose (ofp);
+      ofp = 0;
+    }
   
   if ( data )
     free (data);
@@ -1050,7 +1069,7 @@ usage (void)
 	   " -r bytes       Specify record length in bytes for packing, default: 4096\n"
 	   " -e encoding    Specify SEED encoding format for packing, default: 11 (Steim2)\n"
 	   " -b byteorder   Specify byte order for packing, MSBF: 1 (default), LSBF: 0\n"
-	   " -o outfile     Specify the output file, default is stdout\n"
+	   " -o outfile     Specify the output file, default is <inputfile>.mseed\n"
 	   "\n"
 	   " -T comp=chan   Specify component-channel mapping, can be used many times\n"
 	   "                  e.g.: '-T SBIZ=SHZ -T SBIN=SHN -T SBIE=SHE'\n"

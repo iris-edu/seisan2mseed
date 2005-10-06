@@ -1,3 +1,7 @@
+2005.279: 0.6
+	- The default output files are now the input file names with
+	".mseed" suffix.
+
 2005.278: 0.5
 	- If an input file is prefixed with '@' it should be a list
 	of input data files either in simple text or dirf (filenr.lis)
