@@ -1,4 +1,4 @@
-2005.277: 0.5
+2005.277:
 	- fclose the input files after reading them.
 
 2005.277: 0.4

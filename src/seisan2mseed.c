@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2005.277
+ * modified 2005.278
  ***************************************************************************/
 
 #include <stdio.h>
@@ -31,6 +31,7 @@ static int detectformat (FILE *ifp, char *formatflag, char *swapflag, char *seis
 static char *translatechan (char *component);
 static int parameter_proc (int argcount, char **argvec);
 static char *getoptval (int argcount, char **argvec, int argopt);
+static int readlistfile (char *listfile);
 static void addnode (struct listnode **listroot, char *key, char *data);
 static void addmapnode (struct listnode **listroot, char *mapping);
 static void record_handler (char *record, int reclen);
@@ -41,7 +42,7 @@ static int   packreclen  = -1;
 static int   encoding    = -1;
 static int   byteorder   = -1;
 static char  srateblkt   = 0;
-static char  contpack    = 0;
+static char  bufferall   = 0;
 static char *forcenet    = 0;
 static char *forceloc    = 0;
 static char *outputfile  = 0;
@@ -101,6 +102,7 @@ main (int argc, char **argv)
       flp = flp->next;
     }
 
+  /* Pack any remaining all data */
   packtraces (1);
   
   fprintf (stderr, "Packed %d trace(s) of %d samples into %d records\n",
@@ -538,10 +540,6 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  else
 	    ((MSrecord *)mst->private)->fsdh->dq_flags &= ~(0x80);
 	  
-	  /* Pack any Traces that have enough data (i.e. do not flush the buffers) */
-	  if ( contpack )
-	    packtraces (0);
-	  
 	  /* Cleanup and reset state */
 	  msr->datasamples = 0;
 	  msr = msr_init (msr);
@@ -553,8 +551,12 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	}
     }
   
+  /* Unless buffering all files in memory pack any Traces now */
+  if ( ! bufferall )
+    packtraces (1);
+  
   fclose (ifp);
-
+    
   if ( data )
     free (data);
   
@@ -701,9 +703,9 @@ parameter_proc (int argcount, char **argvec)
 	{
 	  srateblkt = 1;
 	}
-      else if (strcmp (argvec[optind], "-P") == 0)
+      else if (strcmp (argvec[optind], "-B") == 0)
 	{
-	  contpack = 1;
+	  bufferall = 1;
 	}
       else if (strcmp (argvec[optind], "-n") == 0)
 	{
@@ -741,7 +743,10 @@ parameter_proc (int argcount, char **argvec)
 	}
       else
 	{
-	  addnode (&filelist, NULL, argvec[optind]);
+	  if ( *(argvec[optind]) == '@' )
+	    readlistfile (argvec[optind] + 1);
+	  else
+	    addnode (&filelist, NULL, argvec[optind]);
 	}
     }
 
@@ -795,6 +800,127 @@ getoptval (int argcount, char **argvec, int argopt)
   exit (1);
   return 0;
 }  /* End of getoptval() */
+
+
+/***************************************************************************
+ * readlistfile:
+ * Read a list of files from a file and add them to the filelist for
+ * input data.
+ *
+ * Returns the number of file names parsed from the list or -1 on error.
+ ***************************************************************************/
+static int
+readlistfile (char *listfile)
+{
+  FILE *fp;
+  char line[1024];
+  char *ptr;
+  char lineformat;  /* 0 = simple text, 1 = dirf (filenr.lis) */
+  int  filecnt = 0;
+  int  nonspace;
+  
+  /* Open the list file */
+  if ( (fp = fopen (listfile, "rb")) == NULL )
+    {
+      if (errno == ENOENT)
+        {
+          fprintf (stderr, "Could not find list file %s\n", listfile);
+          return -1;
+        }
+      else
+        {
+          fprintf (stderr, "Error opening list file %s: %s\n",
+		   listfile, strerror (errno));
+          return -1;
+        }
+    }
+  
+  if ( verbose )
+    fprintf (stderr, "Reading list of input files from %s\n", listfile);
+  
+  while ( (fgets (line, sizeof(line), fp)) !=  NULL)
+    {
+      /* Truncate line at first \r or \n and count non-space characters */
+      nonspace = 0;
+      ptr = line;
+      while ( *ptr )
+	{
+	  if ( *ptr == '\r' || *ptr == '\n' )
+	    *ptr = '\0';
+	  
+	  else if ( *ptr != ' ' )
+	    nonspace++;
+	  
+	  ptr++;
+	}
+      
+      /* Skip empty lines */
+      if ( nonspace == 0 )
+	continue;
+      
+      /* Trim all trailing spaces */
+      ptr = &line[sizeof(line)-1];
+      while ( ptr != line )
+	{
+	  if ( *ptr == ' ' )
+	    *ptr-- = '\0';
+	  
+	  else if ( *ptr == '\r' || *ptr == '\n' || *ptr == '\0' )
+	    ptr--;
+
+	  else
+	    break;
+	}
+      
+      /* Detect line format by checking first character for # */
+      lineformat = 0;
+      ptr = line;
+      while ( (ptr - &line[0]) <= 5 )
+	{
+	  if ( ! *ptr )
+	    break;
+
+	  if ( *ptr == ' ' )
+	    {
+	      ptr++;
+	      continue;
+	    }
+	  
+	  if ( *ptr == '#' )
+	    {
+	      lineformat = 1;
+	      break;
+	    }
+	  else
+	    {
+	      lineformat = 0;
+	      break;
+	    }
+	}
+      
+      /* 'ptr' should now be pointing at the first non-space character */
+      
+      if ( ! *ptr )
+	continue;
+      
+      if ( lineformat == 0 )
+	{
+	  if ( verbose > 1 )
+	    fprintf (stderr, "Adding %s to input file list\n", ptr);
+	  
+	  addnode (&filelist, NULL, ptr);
+	  filecnt++;
+	  
+	  continue;
+	}
+      
+      if ( lineformat == 1 )
+	{
+	}      
+    }
+
+  return filecnt;
+}  /* End readlistfile() */
 
 
 /***************************************************************************
@@ -896,18 +1022,21 @@ usage (void)
 	   " -h             Show this usage message\n"
 	   " -v             Be more verbose, multiple flags can be used\n"
 	   " -S             Include SEED blockette 100 for very irrational sample rates\n"
-           " -P             Pack Mini-SEED as input data is read instead of buffering all\n"
+           " -B             Buffer data from all files before packing, default packs at EOF\n"
 	   " -n netcode     Specify the SEED network code, default is blank\n"
 	   " -l loccode     Specify the SEED location code, default is blank\n"
 	   " -r bytes       Specify record length in bytes for packing, default: 4096\n"
 	   " -e encoding    Specify SEED encoding format for packing, default: 11 (Steim2)\n"
 	   " -b byteorder   Specify byte order for packing, MSBF: 1 (default), LSBF: 0\n"
-	   " -o outfile     Specify the output file, default is stdout.\n"
+	   " -o outfile     Specify the output file, default is stdout\n"
 	   "\n"
 	   " -T comp=chan   Specify component-channel mapping, can be used many times\n"
 	   "                  e.g.: '-T SBIZ=SHZ -T SBIN=SHN -T SBIE=SHE'\n"
 	   "\n"
 	   " file(s)        File(s) of SeisAn input data\n"
+	   "                  If a file is prefixed with an '@' it is assumed to contain\n"
+	   "                  a list of data files to be read.  This list can either be\n"
+	   "                  a simple text list or in the 'dirf' (filenr.lis) format.\n"
 	   "\n"
 	   "Supported Mini-SEED encoding formats:\n"
 	   " 1  : 16-bit integers (only works if samples can be represented in 16-bits)\n"
