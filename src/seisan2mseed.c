@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.6"
+#define VERSION "0.6b"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -771,13 +771,17 @@ parameter_proc (int argcount, char **argvec)
 	}
       else
 	{
-	  if ( *(argvec[optind]) == '@' )
-	    readlistfile (argvec[optind] + 1);
-	  else
-	    addnode (&filelist, NULL, argvec[optind]);
+	  addnode (&filelist, NULL, argvec[optind]);
 	}
     }
 
+  /* Make sure an output file is specified if buffering all */
+  if ( bufferall && ! outputfile )
+    {
+      fprintf (stderr, "Need to specify output file with -o if using -B\n");
+      exit(1);
+    }
+  
   /* Make sure an input files were specified */
   if ( filelist == 0 )
     {
@@ -790,6 +794,41 @@ parameter_proc (int argcount, char **argvec)
   /* Report the program version */
   if ( verbose )
     fprintf (stderr, "%s version: %s\n", PACKAGE, VERSION);
+
+  /* Check the input files for any list files, if any are found
+   * remove them from the list and add the contained list */
+  if ( filelist )
+    {
+      struct listnode *prevln, *ln;
+      
+      prevln = ln = filelist;
+      while ( ln != 0 )
+	{
+	  if ( *(ln->data) == '@' )
+	    {
+	      /* Remove this node from the list */
+	      if ( ln == filelist )
+		filelist = ln->next;
+	      else
+		prevln->next = ln->next;
+	      
+	      /* Read list file, skip the '@' first character */
+	      readlistfile (ln->data + 1);
+	      
+	      /* Free memory for this node */
+	      if ( ln->key )
+		free (ln->key);
+	      free (ln->data);
+	      free (ln);
+	    }
+	  else
+	    {
+	      prevln = ln;
+	    }
+	  
+	  ln = ln->next;
+	}
+    }
 
   return 0;
 }  /* End of parameter_proc() */
@@ -992,6 +1031,7 @@ addnode (struct listnode **listroot, char *key, char *data)
     }
   
   newlp = (struct listnode *) malloc (sizeof (struct listnode));
+  memset (newlp, 0, sizeof (struct listnode));
   if ( key ) newlp->key = strdup(key);
   else newlp->key = key;
   if ( data) newlp->data = strdup(data);

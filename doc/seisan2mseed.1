@@ -49,7 +49,8 @@ cases.
 Buffer all input data into memory before packing it into Mini-SEED
 records.  The host computer must have enough memory to store all of
 the data.  By default the program will flush it's data buffers after
-each input block is read.
+each input block is read.  An output file must be specified with the
+-o option when using this option.
 
 .IP "-n \fInetcode\fP"
 Specify the SEED network code to use, if not specified the network
@@ -91,6 +92,9 @@ If an input file is prefixed with an '@' character the file is assumed
 to contain a list of file for input.  The list can be either simple
 text, with one file per line, or the format created by the SeisAn dirf
 command (filenr.lis).
+
+Multiple list files can be combined with multiple input files on the
+command line.
 
 An example of a simple test list:
 

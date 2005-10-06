@@ -1,3 +1,7 @@
+2005.279: 0.6b
+	- Read list files after done parsing all command line options,
+	the desired verbosity is then used, etc.
+
 2005.279: 0.6
 	- The default output files are now the input file names with
 	".mseed" suffix.

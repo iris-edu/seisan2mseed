@@ -8,8 +8,10 @@ In most environments a simple 'make' will build the program.
 Using GCC, running 'make static' will compile a static version
 if possible.
 
-For Win32 (Windows) environments the included Makefile.wat files can
-be used with Open Watcom's wmake program.
+For Win32 (Windows) Open Watcom's wmake program can be used with
+Makefile.wat (e.g. wmake -f Makefile.wat), this has only been tested
+with Open Watcom 1.3.  Some untested Makefile.win files exist that
+might work with Microsoft's nmake program.
 
 For usage information see the man page in the doc directory.
 
