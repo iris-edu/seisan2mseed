@@ -11,6 +11,8 @@ if possible.
 For Win32 (Windows) environments the included Makefile.wat files can
 be used with Open Watcom's wmake program.
 
+For usage information see the man page in the doc directory.
+
 -- Licensing --
 
 This program is free software; you can redistribute it and/or modify
