@@ -960,6 +960,8 @@ readlistfile (char *listfile)
 	}
     }
 
+  fclose (fp);
+
   return filecnt;
 }  /* End readlistfile() */
 
