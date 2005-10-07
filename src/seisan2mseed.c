@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2005.279
+ * modified 2005.280
  ***************************************************************************/
 
 #include <stdio.h>
@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.6b"
+#define VERSION "0.6c"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -216,6 +216,41 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
       return -1;
     }
   
+  /* Detect format and byte order */
+  if ( detectformat (ifp, &formatflag, &swapflag, seisanfile) )
+    {
+      if ( ferror(ifp) )
+	fprintf (stderr, "Error reading file %s: %s\n",
+		 seisanfile, strerror(errno));
+      else
+	fprintf (stderr, "Error detecting data format of %s\n", seisanfile);
+      
+      return -1;
+    }
+  
+  /* Read the signature character for formatflag == 1, it's not needed. */
+  if ( formatflag == 1 )
+    fread (&reclen1, 1, 1, ifp);
+  
+  /* Report format and byte order detection results */
+  if ( verbose > 1 )
+    {
+      if ( formatflag == 1 )
+	fprintf (stderr, "Detected PC <= 6.0 format for %s\n", seisanfile);
+      else if ( formatflag == 4 )
+	fprintf (stderr, "Detected Sun/Linux and PC >= 7.0 format for %s\n", seisanfile);
+      else
+	{
+	  fprintf (stderr, "Unknown format for %s\n", seisanfile);
+	  return -1;
+	}
+      
+      if ( swapflag == 0 )
+	fprintf (stderr, "Byte swapping not needed for %s\n", seisanfile);
+      else
+	fprintf (stderr, "Byte swapping needed for %s\n", seisanfile);
+    }
+  
   /* Open .mseed output file if needed */
   if ( ! ofp )
     {
@@ -242,42 +277,6 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
     {
       /* Get current file position */
       filepos = lmp_ftello (ifp);
-      
-      /* Detect format */
-      if ( ! formatflag )
-	{
-	  if ( detectformat (ifp, &formatflag, &swapflag, seisanfile) )
-	    {
-	      if ( ferror(ifp) )
-		fprintf (stderr, "Error reading file %s: %s\n",
-			 seisanfile, strerror(errno));
-	      else
-		fprintf (stderr, "Error detecting data format of %s\n", seisanfile);
-	      break;
-	    }
-	  
-	  /* Read the signature character for formatflag == 1, it's not needed. */
-	  if ( formatflag == 1 )
-	    fread (&reclen1, 1, 1, ifp);
-	  
-	  if ( verbose > 1 )
-	    {
-	      if ( formatflag == 1 )
-		fprintf (stderr, "Detected PC <= 6.0 format for %s\n", seisanfile);
-	      else if ( formatflag == 4 )
-		fprintf (stderr, "Detected Sun/Linux and PC >= 7.0 format for %s\n", seisanfile);
-	      else
-		{
-		  fprintf (stderr, "Unknown format for %s\n", seisanfile);
-		  break;
-		}
-	      
-	      if ( swapflag == 0 )
-		fprintf (stderr, "Byte swapping not needed for %s\n", seisanfile);
-	      else
-		fprintf (stderr, "Byte swapping needed for %s\n", seisanfile);
-	    }
-	}
       
       /* Read next record length */
       if ( formatflag == 1 )

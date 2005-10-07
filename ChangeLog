@@ -1,3 +1,8 @@
+2005.280: 0.6c
+	- Move input file format detection out of main loop and before
+	creation of the output file.  If a SeisAn format cannot be
+	detected the output will not be created.
+
 2005.279: 0.6b
 	- Read list files after done parsing all command line options,
 	the desired verbosity is then used, etc.
