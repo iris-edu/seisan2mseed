@@ -458,10 +458,10 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  datasamplesize = ( *(cheader+76) == '4' ) ? 4 : 2;
 	  
 	  if ( verbose )
-	    fprintf (stderr, "[%s] '%s_%s' (%s): %s%s, %d samps @ %.4f Hz\n",
+	    fprintf (stderr, "[%s] '%s_%s' (%s): %s%s, %d %d byte samps @ %.4f Hz\n",
 		     seisanfile, msr->station, component, msr->channel,
 		     timestr, (uctimeflag) ? " [UNCERTAIN]" : "",
-		     msr->samplecnt, msr->samprate);
+		     msr->samplecnt, datasamplesize, msr->samprate);
 	  
 	  expectdata = 1;
 	  expectdatalen = msr->samplecnt * datasamplesize;
