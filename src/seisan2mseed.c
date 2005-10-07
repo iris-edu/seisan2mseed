@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.6c"
+#define VERSION "0.7"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -194,8 +194,15 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
   char *data = 0;
   int datalen = 0;
   int maxdatalen = 0;
+  int datasamplesize = 0;
   int expectdatalen = 0;
   
+  int32_t *samplebuffer = 0;
+  int maxsamplebufferlen = 0;
+  int numsamples = 0;
+  int32_t *sampleptr4 = 0;
+  int16_t *sampleptr2 = 0;
+
   char component[5];
   long year;
   char timestr[30];
@@ -272,7 +279,6 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
     }
   
   /* Read a record at a time */
-  readlen = 0;
   for (;;)
     {
       /* Get current file position */
@@ -365,7 +371,7 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	}
       
       /* Expecting a channel header:
-       * Either the channel header is starting (first char is space)
+       * Either the channel header is starting (first char is not space)
        * Or we are already reading it (cheaderlen != 0) */
       if ( expectheader && (cheaderlen != 0 || *record != ' ') )
 	{
@@ -448,6 +454,9 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	      fprintf (stderr, "Gain NOT applied, no support for that yet!\n");
 	    }
 	  
+	  /* Determine data sample size */
+	  datasamplesize = ( *(cheader+76) == '4' ) ? 4 : 2;
+	  
 	  if ( verbose )
 	    fprintf (stderr, "[%s] '%s_%s' (%s): %s%s, %d samps @ %.4f Hz\n",
 		     seisanfile, msr->station, component, msr->channel,
@@ -455,7 +464,7 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 		     msr->samplecnt, msr->samprate);
 	  
 	  expectdata = 1;
-	  expectdatalen = msr->samplecnt * 4;
+	  expectdatalen = msr->samplecnt * datasamplesize;
 	  expectheader = 0;
 	  cheaderlen = 0;
 	  continue;
@@ -494,27 +503,61 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  if ( datalen < expectdatalen )
 	    continue;
 	  
-	  /* Othrewise add data to TraceGroup */
-	  msr->datasamples = data;
-	  msr->numsamples = datalen / 4;  /* Assuming 4-byte integers */
-	  msr->sampletype = 'i';
-	  
+	  /* Number of samples implied by data record length */
+	  msr->numsamples = datalen / datasamplesize;
+
 	  if ( msr->samplecnt != msr->numsamples )
 	    {
 	      fprintf (stderr, "[%s] Number of samples in channel header != data section\n", seisanfile);
 	      fprintf (stderr, "  Header: %d, Data section: %d\n", msr->samplecnt, msr->numsamples);
 	    }
 
-	  /* Swap data samples if needed */
-	  if ( swapflag )
+	  /* Make sure we have 32-bit integers in host byte order */
+	  if ( datasamplesize == 2 )
 	    {
-	      int32_t *sampptr = (int32_t *) msr->datasamples;
-	      int32_t numsamples = msr->numsamples;
+	      if ( (datalen * 2) > maxsamplebufferlen )
+		{
+		  if ( (samplebuffer = realloc (samplebuffer, (datalen*2))) == NULL )
+		    {
+		      fprintf (stderr, "Error allocating memory for sample buffer\n");
+		      break;
+		    }
+		  else
+		    maxsamplebufferlen = datalen * 2;
+		}
 	      
+	      sampleptr2 = (int16_t *) data;
+	      sampleptr4 = samplebuffer;
+	      numsamples = msr->numsamples;
+	      
+	      /* Convert to 32-bit and swap data samples if needed */
 	      while (numsamples--)
-		gswap4a (sampptr++);
+		{
+		  if ( swapflag )
+		    gswap2a (sampleptr2);
+		  
+		  *(sampleptr4++) = *(sampleptr2++);
+		}
 	    }
-
+	  else
+	    {
+	      samplebuffer = (int32_t *) data;
+	      
+	      /* Swap data samples if needed */
+	      if ( swapflag )
+		{		  
+		  sampleptr4 = samplebuffer;
+		  numsamples = msr->numsamples;
+		  
+		  while (numsamples--)
+		    gswap4a (sampleptr4++);
+		}
+	    }
+	  
+	  /* Otherwise add data to TraceGroup */
+	  msr->datasamples = samplebuffer;
+	  msr->sampletype = 'i';
+	  
 	  if ( verbose > 1 )
 	    {
 	      fprintf (stderr, "[%s] %d samps @ %.6f Hz for N: '%s', S: '%s', L: '%s', C: '%s'\n",
