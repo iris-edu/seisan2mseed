@@ -515,6 +515,8 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  /* Make sure we have 32-bit integers in host byte order */
 	  if ( datasamplesize == 2 )
 	    {
+	      msr->datasamples = samplebuffer;
+
 	      if ( (datalen * 2) > maxsamplebufferlen )
 		{
 		  if ( (samplebuffer = realloc (samplebuffer, (datalen*2))) == NULL )
@@ -539,23 +541,30 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 		  *(sampleptr4++) = *(sampleptr2++);
 		}
 	    }
-	  else
+	  else if ( datasamplesize == 4 )
 	    {
-	      samplebuffer = (int32_t *) data;
+	      msr->datasamples = data;
 	      
 	      /* Swap data samples if needed */
 	      if ( swapflag )
-		{		  
-		  sampleptr4 = samplebuffer;
+		{
+		  sampleptr4 = (int32_t *) msr->datasamples;
 		  numsamples = msr->numsamples;
 		  
 		  while (numsamples--)
 		    gswap4a (sampleptr4++);
 		}
+	      
+	      if ( verbose > 1 && encoding == 1 )
+		fprintf (stderr, "WARNING: attempting to pack 32-bit integers into 16-bit encoding\n");
+	    }
+	  else
+	    {
+	      fprintf (stderr, "Error, unknown data sample size: %d\n", datasamplesize);
+	      break;
 	    }
 	  
-	  /* Otherwise add data to TraceGroup */
-	  msr->datasamples = samplebuffer;
+	  /* Add data to TraceGroup */
 	  msr->sampletype = 'i';
 	  
 	  if ( verbose > 1 )
@@ -629,6 +638,9 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
   
   if ( data )
     free (data);
+
+  if ( samplebuffer )
+    free (samplebuffer);
   
   if ( record )
     free (record);
