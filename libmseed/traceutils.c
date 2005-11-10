@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified: 2005.269
+ * modified: 2005.299
  ***************************************************************************/
 
 #include <stdio.h>
@@ -31,6 +31,9 @@ mst_init ( Trace *mst )
     {
       if ( mst->datasamples )
 	free (mst->datasamples);
+
+      if ( mst->private )
+	free (mst->private);
     }
   else
     {
@@ -189,7 +192,8 @@ mst_findmatch ( Trace *startmst,
  * if traces abut.  If timetol is -1.0 the default tolerance of 1/2
  * the sample period will be used.  If samprratetol is -1.0 the
  * default tolerance check of abs(1-sr1/sr2) < 0.0001 is used (defined
- * in libmseed.h).
+ * in libmseed.h).  If timetol or sampratetol is -2.0 the respective
+ * tolerance check will not be performed.
  *
  * The 'whence' flag will be set, when a matching Trace is found, to
  * indicate where the indicated time span is adjacent to the Trace
@@ -218,20 +222,24 @@ mst_findadjacent ( TraceGroup *mstg, flag *whence,
   
   while ( (mst = mst_findmatch (mst, network, station, location, channel)) )
     {
-      /* Perform default samprate tolerance check if requested */
-      if ( sampratetol == -1.0 )
-	{
-	  if ( ! MS_ISRATETOLERABLE (samprate, mst->samprate) )
+      /* Perform samprate tolerance check if requested */
+      if ( sampratetol != -2.0 )
+	{ 
+	  /* Perform default samprate tolerance check if requested */
+	  if ( sampratetol == -1.0 )
+	    {
+	      if ( ! MS_ISRATETOLERABLE (samprate, mst->samprate) )
+		{
+		  mst = mst->next;
+		  continue;
+		}
+	    }
+	  /* Otherwise check against the specified sample rate tolerance */
+	  else if ( ms_dabs (samprate - mst->samprate) > sampratetol )
 	    {
 	      mst = mst->next;
 	      continue;
 	    }
-	}
-      /* Otherwise check against the specified sample rate tolerance */
-      else if ( ms_dabs (samprate - mst->samprate) > sampratetol )
-	{
-	  mst = mst->next;
-	  continue;
 	}
       
       /* post/pregap are negative when the record overlaps the trace
@@ -241,19 +249,32 @@ mst_findadjacent ( TraceGroup *mstg, flag *whence,
       
       pregap = ((double)(mst->starttime - endtime)/HPTMODULUS) - (1.0 / samprate);
       
-      /* Calculate default time tolerance (1/2 sample period) if needed */
-      if ( timetol == -1.0 )
-	timetol = 0.5 / samprate;
-      
-      if ( ms_dabs(postgap) <= timetol ) /* Span fits right at the end of the trace */
+      /* If not checking the time tolerance decide if beginning or end is a better fit */
+      if ( timetol == -2.0 )
 	{
-	  *whence = 1;
+	  if ( ms_dabs(postgap) < ms_dabs(pregap) )
+	    *whence = 1;
+	  else
+	    *whence = 2;
+	  
 	  break;
 	}
-      else if ( ms_dabs(pregap) <= timetol ) /* Span fits right at the beginning of the trace */
+      else
 	{
-	  *whence = 2;
-	  break;
+	  /* Calculate default time tolerance (1/2 sample period) if needed */
+	  if ( timetol == -1.0 )
+	    timetol = 0.5 / samprate;
+	  
+	  if ( ms_dabs(postgap) <= timetol ) /* Span fits right at the end of the trace */
+	    {
+	      *whence = 1;
+	      break;
+	    }
+	  else if ( ms_dabs(pregap) <= timetol ) /* Span fits right at the beginning of the trace */
+	    {
+	      *whence = 2;
+	      break;
+	    }
 	}
       
       mst = mst->next;
@@ -345,10 +366,14 @@ mst_addmsr ( Trace *mst, MSrecord *msr, flag whence )
     {
       if ( msr->datasamples && msr->numsamples >= 0 )
 	{
-	  memmove ((char *)mst->datasamples + (msr->numsamples * samplesize),
-		   mst->datasamples,
-		   msr->numsamples * samplesize);
-	  
+	  /* Move any samples to end of buffer */
+	  if ( mst->numsamples > 0 )
+	    {
+	      memmove ((char *)mst->datasamples + (msr->numsamples * samplesize),
+		       mst->datasamples,
+		       msr->numsamples * samplesize);
+	    }
+
 	  memcpy (mst->datasamples,
 		  msr->datasamples,
 		  msr->numsamples * samplesize);
@@ -436,9 +461,13 @@ mst_addspan ( Trace *mst, hptime_t starttime, hptime_t endtime,
     {
       if ( datasamples && numsamples > 0 )
 	{
-	  memmove ((char *)mst->datasamples + (numsamples * samplesize),
-		   mst->datasamples,
-		   numsamples * samplesize);
+	  /* Move any samples to end of buffer */
+	  if ( mst->numsamples > 0 )
+	    {
+	      memmove ((char *)mst->datasamples + (numsamples * samplesize),
+		       mst->datasamples,
+		       numsamples * samplesize);
+	    }
 	  
 	  memcpy (mst->datasamples,
 		  datasamples,
@@ -1201,6 +1230,13 @@ mst_pack ( Trace *mst, void (*record_handler) (char *, int),
   msr->numsamples = mst->numsamples;
   msr->sampletype = mst->sampletype;
   
+  /* Sample count sanity check */
+  if ( mst->samplecnt != mst->numsamples )
+    {
+      fprintf (stderr, "mst_pack(): Sample counts do not match, abort\n");
+      return -1;
+    }
+  
   /* Pack data */
   packedrecords = msr_pack (msr, record_handler, packedsamples, flush, verbose);
   
@@ -1239,6 +1275,7 @@ mst_pack ( Trace *mst, void (*record_handler) (char *, int),
 	  mst->datasamples = 0;
 	}
       
+      mst->samplecnt -= *packedsamples;
       mst->numsamples -= *packedsamples;
     }
     
@@ -1273,7 +1310,8 @@ mst_packgroup ( TraceGroup *mstg, void (*record_handler) (char *, int),
   Trace *mst;
   int packedrecords = 0;
   int tracesamples = 0;
-  
+  char srcname[30];
+
   if ( ! mstg )
     {
       return -1;
@@ -1284,14 +1322,26 @@ mst_packgroup ( TraceGroup *mstg, void (*record_handler) (char *, int),
   
   while ( mst )
     {
-      packedrecords += mst_pack (mst, record_handler, reclen, encoding,
-				 byteorder, &tracesamples, flush, verbose,
-				 mstemplate);
-      if ( packedrecords == -1 )
-	break;
+      if ( mst->numsamples <= 0 )
+	{
+	  if ( verbose > 1 )
+	    {
+	      mst_srcname (mst, srcname);
+	      fprintf (stderr, "No data samples for %s, skipping\n", srcname);
+	    }
+	}
+      else
+	{
+	  packedrecords += mst_pack (mst, record_handler, reclen, encoding,
+				     byteorder, &tracesamples, flush, verbose,
+				     mstemplate);
+	  
+	  if ( packedrecords == -1 )
+	    break;
+	  
+	  *packedsamples += tracesamples;
+	}
       
-      *packedsamples += tracesamples;
-
       mst = mst->next;
     }
   

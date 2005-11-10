@@ -1,4 +1,4 @@
-.TH MST_FINDMATCH 3 2004/11/22 "Libmseed API"
+.TH MST_FINDMATCH 3 2005/10/26 "Libmseed API"
 .SH DESCRIPTION
 Searching a TraceGroup for specific Trace structures.
 
@@ -33,8 +33,11 @@ description of the high precision epoch time format needed for
 The tolerance for sample rate and time matching can also be specified.
 If \fIsampratetol\fP is -1.0 the default tolerance of abs(1-sr1/sr2) <
 0.0001 is used.  If \fItimetol\fP is -1.0 the default time tolerance
-of 1/2 the sample period will be used.  The time tolerance is
-specified in seconds.
+of 1/2 the sample period will be used.  If \fIsampratetol\fP or
+\fItimetol\fP is -2.0 the respective tolerance check will not be
+performed.  If time tolerance is not checked \fIwhence\fP will be set
+to whichever end fits best.  The time tolerance is specified in
+seconds.
 
 When an adjacent Trace is found the \fIwhence\fP flag will be set to
 indicate where the indicated time span is adjacent in the following

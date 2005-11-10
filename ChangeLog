@@ -6,6 +6,7 @@
 	- Output file name now adds '_MSEED' unless it's a standard
 	SeisAn file in which case the 'S' at character 19 is changed to
 	an 'M'.
+	- Upate to libmseed 1.4.2.
 	- Update documentation, components with spaces must be quoted.
 
 2005.280: 0.7

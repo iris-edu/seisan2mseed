@@ -18,8 +18,9 @@ Initializing and freeing Trace and TraceGroup structures
 .SH DESCRIPTION
 \fBmst_init\fP will initialize a Trace structure.  If the \fImst\fP
 parameter is NULL a new structure will be allocated.  If the \fImst\fP
-parameter is not NULL the structure will be cleared and any data
-samples pointed at by Trace.datasamples will be freed.
+parameter is not NULL the structure will be cleared and any memory
+allocated for the Trace.datasamples and Trace.private members will
+be freed.
 
 \fBmst_free\fP will free all memory associated with a Trace structure
 and set the structure pointer (*\fIppmst\fP) to 0.  This includes any
