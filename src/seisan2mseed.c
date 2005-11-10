@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2005.280
+ * modified 2005.314
  ***************************************************************************/
 
 #include <stdio.h>
@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.7"
+#define VERSION "0.8"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -28,7 +28,7 @@ struct listnode {
 static void packtraces (flag flush);
 static int seisan2group (char *seisanfile, TraceGroup *mstg);
 static int detectformat (FILE *ifp, char *formatflag, char *swapflag, char *seisanfile);
-static char *translatechan (char *component);
+static int translatechan (char *component, char *channel, char *location);
 static int parameter_proc (int argcount, char **argvec);
 static char *getoptval (int argcount, char **argvec, int argopt);
 static int readlistfile (char *listfile);
@@ -258,11 +258,22 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	fprintf (stderr, "Byte swapping needed for %s\n", seisanfile);
     }
   
-  /* Open .mseed output file if needed */
+  /* Open output file if needed */
   if ( ! ofp )
     {
       char mseedoutputfile[1024];
-      snprintf (mseedoutputfile, sizeof(mseedoutputfile), "%s.mseed", seisanfile);
+      
+      /* If a "standard" name change the S to an M otherwise add _MSEED to the end */
+      if ( seisanfile[4] == '-' && seisanfile[7] == '-' && seisanfile[10] == '-' &&
+	   seisanfile[15] == '-' && seisanfile[18] == 'S' && seisanfile[19] == '.' )
+	{
+	  strncpy (mseedoutputfile, seisanfile, sizeof(mseedoutputfile));
+	  mseedoutputfile[18] = 'M';
+	}
+      else
+	{
+	  snprintf (mseedoutputfile, sizeof(mseedoutputfile), "%s_MSEED", seisanfile);
+	}
       
       if ( (ofp = fopen (mseedoutputfile, "wb")) == NULL )
         {
@@ -396,13 +407,15 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  /* Otherwise parse the header */
 	  ms_strncpclean (msr->network, forcenet, 2);
 	  ms_strncpclean (msr->station, cheader, 5);
-	  ms_strncpclean (msr->location, forceloc, 2);
 	  
-	  /* Map component to SEED channel */
+	  /* Map component to SEED channel and location */
 	  memset (component, 0, sizeof(component));
 	  memcpy (component, cheader + 5, 4);
 	  
-	  strcpy (msr->channel, translatechan(component));
+	  translatechan (component, msr->channel, msr->location);
+	  
+	  if ( forceloc )
+	    ms_strncpclean (msr->location, forceloc, 2);
 	  
 	  /* Construct time string */
 	  memset (timestr, 0, sizeof(timestr));
@@ -713,43 +726,62 @@ detectformat (FILE *ifp, char *formatflag, char *swapflag, char *seisanfile)
 /***************************************************************************
  * translatechan:
  *
- * Translate a SeisAn componet to a SEED channel.  If none of the
- * hardcoded translations match the default action is to return a 3
- * character channel composed of the first 2 and fourth characters of
- * the component.  If the 2nd character of the component is a space
- * but the first and fourth are not 'H' will be substituted for the space.
+ * Translate a SeisAn componet to a SEED channel and location.  If
+ * none of the specified translations match, the default translation is:
  *
- * Returns a pointer to a channel code on success and NULL on failure.
+ * channel: the first 2 and fourth characters of the component.  If
+ * the 2nd character of the component is a space but the first and
+ * fourth are not 'H' will be substituted for the space.
+ *
+ * location: the 3rd character of the component followed by a '0'.  If
+ * the 3rd character of the component is a space it will be translated
+ * to a '0'.
+ *
+ * Examples:
+ * Component Chan    Loc
+ * 'S  Z' -> 'SHZ'   '00'
+ * 'SS Z' -> 'SSZ'   '00'
+ * 'S IZ' -> 'SHZ'   'I0'
+ * 'SBIZ' -> 'SBZ'   'I0'
+ *
+ * Returns a 0 on success and -1 on failure.
  ***************************************************************************/
-static char *
-translatechan (char *component)
+static int
+translatechan (char *component, char *channel, char *location)
 {
-  static char channel[4];
   struct listnode *clp;
+  
+  strncpy (location, "00", 3);
   
   /* Check user defined translations */
   clp = chanlist;
   while ( clp != 0 )
     {
       if ( ! strcmp (component, clp->key) )
-	return clp->data;
+	{
+	  strncpy (channel, clp->data, 6);
+	  return 0;
+	}
       
       clp = clp->next;
     }
   
-  /* Default translation:
-   * Create 3 character channel from first 2 and fourth character of component,
-   * if the 2nd character is a space but the first and fourth are not substitute
-   * 'H' for the space, for example: 'S  Z' -> 'SHZ'
-   */
+  /* Default translation, described above */
+  
+  /* First 2 and fourth characters become the channel */
   memcpy (channel, component, 2);
   memcpy (channel+2, component+3, 1);
-  channel[3] = '\0';
+  memset (channel+3, 0, 1);
   
+  /* 2nd channel character space->H if the others are not blank */
   if ( channel[0] != ' ' && channel[2] != ' ' && channel[1] == ' ' )
     channel[1] = 'H';
   
-  return channel;
+  /* If 3rd component character is not blank put it in the location code */
+  if ( component[2] != ' ' )
+    location[0] = component[2];
+  
+  return 0;
 }  /* End of translatechan() */
 
 
@@ -854,11 +886,14 @@ parameter_proc (int argcount, char **argvec)
   if ( filelist )
     {
       struct listnode *prevln, *ln;
+      char *lfname;
       
       prevln = ln = filelist;
       while ( ln != 0 )
 	{
-	  if ( *(ln->data) == '@' )
+	  lfname = ln->data;
+
+	  if ( *lfname == '@' || ! strcasecmp (lfname,"filenr.lis") )
 	    {
 	      /* Remove this node from the list */
 	      if ( ln == filelist )
@@ -866,8 +901,12 @@ parameter_proc (int argcount, char **argvec)
 	      else
 		prevln->next = ln->next;
 	      
-	      /* Read list file, skip the '@' first character */
-	      readlistfile (ln->data + 1);
+	      /* Skip the '@' first character */
+	      if ( *lfname == '@' )
+		lfname++;
+
+	      /* Read list file */
+	      readlistfile (lfname);
 	      
 	      /* Free memory for this node */
 	      if ( ln->key )
@@ -1168,7 +1207,8 @@ usage (void)
 	   " -o outfile     Specify the output file, default is <inputfile>.mseed\n"
 	   "\n"
 	   " -T comp=chan   Specify component-channel mapping, can be used many times\n"
-	   "                  e.g.: '-T SBIZ=SHZ -T SBIN=SHN -T SBIE=SHE'\n"
+	   "                  e.g.: \"-T SBIZ=SHZ -T SBIN=SHN -T SBIE=SHE\"\n"
+	   "                  spaces must be quoted: \"-T 'S  Z'=SLZ\"\n"
 	   "\n"
 	   " file(s)        File(s) of SeisAn input data\n"
 	   "                  If a file is prefixed with an '@' it is assumed to contain\n"

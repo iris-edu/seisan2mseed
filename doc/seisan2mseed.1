@@ -1,4 +1,4 @@
-.TH SEISAN2MSEED 1 2005/10/06
+.TH SEISAN2MSEED 1 2005/11/10
 .SH NAME
 SeisAn to Mini-SEED converter
 
@@ -10,20 +10,25 @@ seisan2mseed [options] file1 [file2 file3 ...]
 .SH DESCRIPTION
 \fBseisan2mseed\fP converts SeisAn waveform data files to Mini-SEED.
 One or more input files may be specified on the command line.  If an
-input file name is prefixed with an '@' character the file is assumed
-to contain a list of input data files, see \fILIST FILES\fP below.
+input file name is prefixed with an '@' character or explicitly
+named 'filenr.lis' the file is assumed to contain a list of input data
+files, see \fILIST FILES\fP below.
 
 The default translation of SeisAn components to SEED channel codes is
 as follows: a 3 character SEED channel is composed of the first,
 second and fourth characters of the component; furthermore if the
 second character is a space and the first and fourth are not spaces
 an 'H' is substituted for the 2nd character (i.e. 'S__Z' -> 'SHZ').
-Other translations may be explicitly specified using the -T command
-line option.
+The default SEED location code is '00', if the third character of the
+SeisAn component is not a space it will be placed in the first
+character of the SEED location code.  Other translations may be
+explicitly specified using the -T command line option.
 
-By default all data from a given input file is written to a file of
-the same name with a ".mseed" suffix.  The output data may be
-re-directed to a single file or stdout using the -o option.
+If the input file name is a standard SeisAn file name the default
+output file name will be the same with the 'S' at character 19
+replaced by an 'M'.  Otherwise the output file name is the input file
+name with a "_MSEED" suffix.  The output data may be re-directed to a
+single file or stdout using the -o option.
 
 .SH OPTIONS
 
@@ -84,8 +89,9 @@ diagnostic output from the program is written to stderr and should
 never get mixed with data going to stdout.
 
 .IP "-T \fIcomp=chan\fP"
-Specify an explicit component to channel mapping, this option may be
-used several times (e.g. '-T SBIZ=SHZ -T SBIN=SHN -T SBIE=SHE').
+Specify an explicit SeisAn component to SEED channel mapping, this
+option may be used several times (e.g. "-T SBIZ=SHZ -T SBIN=SHN -T
+SBIE=SHE").  Spaces in components must be quoted, i.e. "-T 'S  Z'=SHZ".
 
 .SH LIST FILES
 If an input file is prefixed with an '@' character the file is assumed

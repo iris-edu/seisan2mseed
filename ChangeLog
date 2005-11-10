@@ -1,3 +1,13 @@
+2005.314: 0.8
+	- If the 3rd component character is not a space put it in the
+	first character of the location code, default location code is
+	now '00'.
+	- 'filenr.lis' is now recognized as a list file.
+	- Output file name now adds '_MSEED' unless it's a standard
+	SeisAn file in which case the 'S' at character 19 is changed to
+	an 'M'.
+	- Update documentation, components with spaces must be quoted.
+
 2005.280: 0.7
 	- Add support for 16-bit (2 byte) integer samples.
 	- Move input file format detection out of main loop and before
