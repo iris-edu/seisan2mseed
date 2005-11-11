@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, ORFEUS/EC-Project MEREDIAN
  *
- * modified: 2005.203
+ * modified: 2005.315
  ***************************************************************************/
 
 #include <stdio.h>
@@ -550,7 +550,7 @@ msr_print (MSrecord *msr, flag details)
 		  printf ("       event detection flags: [%u%u%u%u%u%u%u%u] 8 bits\n",
 			  bit(b,0x01), bit(b,0x02), bit(b,0x04), bit(b,0x08),
 			  bit(b,0x10), bit(b,0x20), bit(b,0x40), bit(b,0x80));
-		  if ( b & 0x01 ) printf ("                         [Bit 0] 1: Dilation wave\n");
+		  if ( b & 0x01 ) printf ("                         [Bit 0] 1: Dilatation wave\n");
 		  else            printf ("                         [Bit 0] 0: Compression wave\n");
 		  if ( b & 0x02 ) printf ("                         [Bit 1] 1: Units after deconvolution\n");
 		  else            printf ("                         [Bit 1] 0: Units are digital counts\n");

@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.8"
+#define VERSION "0.8.1"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {

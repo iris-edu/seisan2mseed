@@ -1,3 +1,7 @@
+2005.315: 1.4.3
+	- Include WIN32 define for strcasecmp->_stricmp.
+	- Fix typo in blockette 200 printing.
+
 2005.300: 1.4.2
 	- Include sys/types.h for Win32 systems in lmplatform.h and
 	do not typedef off_t.
