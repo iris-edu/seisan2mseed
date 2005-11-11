@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2005.314
+ * modified 2005.315
  ***************************************************************************/
 
 #include <stdio.h>
@@ -1204,7 +1204,7 @@ usage (void)
 	   " -r bytes       Specify record length in bytes for packing, default: 4096\n"
 	   " -e encoding    Specify SEED encoding format for packing, default: 11 (Steim2)\n"
 	   " -b byteorder   Specify byte order for packing, MSBF: 1 (default), LSBF: 0\n"
-	   " -o outfile     Specify the output file, default is <inputfile>.mseed\n"
+	   " -o outfile     Specify the output file, default is <inputfile>_MSEED\n"
 	   "\n"
 	   " -T comp=chan   Specify component-channel mapping, can be used many times\n"
 	   "                  e.g.: \"-T SBIZ=SHZ -T SBIN=SHN -T SBIE=SHE\"\n"
