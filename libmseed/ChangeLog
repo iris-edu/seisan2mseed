@@ -1,3 +1,8 @@
+2005.325: 1.4.4
+	- Add end time sort level to mst_groupsort(), now the function
+	will sort on: source name, sample rate, start time and
+	descending end time in that order.
+
 2005.315: 1.4.3
 	- Include WIN32 define for strcasecmp->_stricmp.
 	- Fix typo in blockette 200 printing.

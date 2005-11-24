@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified: 2005.299
+ * modified: 2005.325
  ***************************************************************************/
 
 #include <stdio.h>
@@ -764,8 +764,9 @@ mst_heal ( TraceGroup *mstg, double timetol, double sampratetol )
 /***************************************************************************
  * mst_groupsort:
  *
- * Sort a TraceGroup first on source name and then on start time.  The
- * "bubble sort" algorithm herein is not terribly efficient.
+ * Sort a TraceGroup first on source name, then sample rate, then
+ * start time and finally on descending endtime (longest trace first).
+ * The "bubble sort" algorithm herein is not terribly efficient.
  *
  * Return 0 on success and -1 on error.
  ***************************************************************************/
@@ -801,7 +802,10 @@ mst_groupsort ( TraceGroup *mstg )
 	strcmpval = strcmp (src1, src2);
 	
 	/* If the source names do not match make sure the "greater" string is 2nd,
-	   if the names do match make sure the later start time is 2nd */
+	 * otherwise, if source names do match, make sure the highest sample rate is 2nd
+	 * otherwise, if sample rates match, make sure the later start time is 2nd
+	 * otherwise, if start times match, make sure the earlier end time is 2nd
+	 */
 	if ( strcmpval > 1 )
 	  {
 	    swap = 1;
@@ -817,6 +821,13 @@ mst_groupsort ( TraceGroup *mstg )
 		if ( mst->starttime > mst->next->starttime )
 		  {
 		    swap = 1;
+		  }
+		else if (  mst->starttime == mst->next->starttime )
+		  {
+		    if ( mst->endtime < mst->next->endtime )
+		      {
+			swap = 1;
+		      }
 		  }
 	      }
 	  }

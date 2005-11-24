@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2005.315
+ * modified 2005.328
  ***************************************************************************/
 
 #include <stdio.h>
@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.8.1"
+#define VERSION "0.8.2"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -1211,9 +1211,10 @@ usage (void)
 	   "                  spaces must be quoted: \"-T 'S  Z'=SLZ\"\n"
 	   "\n"
 	   " file(s)        File(s) of SeisAn input data\n"
-	   "                  If a file is prefixed with an '@' it is assumed to contain\n"
-	   "                  a list of data files to be read.  This list can either be\n"
-	   "                  a simple text list or in the 'dirf' (filenr.lis) format.\n"
+	   "                  If a file is prefixed with an '@' or explicily named\n"
+	   "                  'filenr.lis' it is assumed to contain a list of data files\n"
+	   "                  to be read.  This list can either be a simple text list\n"
+	   "                  or in the 'dirf' (filenr.lis) format.\n"
 	   "\n"
 	   "Supported Mini-SEED encoding formats:\n"
 	   " 1  : 16-bit integers (only works if samples can be represented in 16-bits)\n"

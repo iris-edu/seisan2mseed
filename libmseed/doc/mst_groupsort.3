@@ -1,4 +1,4 @@
-.TH MST_GROUPSORT 3 2005/03/10 "Libmseed API"
+.TH MST_GROUPSORT 3 2005/11/21 "Libmseed API"
 .SH DESCRIPTION
 Manipulate Trace segments in a TraceGroup
 
@@ -15,7 +15,7 @@ Manipulate Trace segments in a TraceGroup
 .SH DESCRIPTION
 \fBmst_groupsort\fP will sort the Trace segments in a TraceGroup first
 on the source name (as returned by \fBmst_srcname\fP), then on sample
-rate and finally on start time.
+rate, then on start time and finally on descending end time.
 
 \fBmst_heal\fP will attempt to heal Trace segments in a TraceGroup if
 they fit within the specified time and sample rate tolerance

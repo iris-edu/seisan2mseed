@@ -1,4 +1,4 @@
-.TH SEISAN2MSEED 1 2005/11/10
+.TH SEISAN2MSEED 1 2005/11/24
 .SH NAME
 SeisAn to Mini-SEED converter
 
@@ -95,9 +95,10 @@ SBIE=SHE").  Spaces in components must be quoted, i.e. "-T 'S  Z'=SHZ".
 
 .SH LIST FILES
 If an input file is prefixed with an '@' character the file is assumed
-to contain a list of file for input.  The list can be either simple
-text, with one file per line, or the format created by the SeisAn dirf
-command (filenr.lis).
+to contain a list of file for input.  As a special case an input file
+named 'filenr.lis' is always assumed to be a list file.  The list can
+be either simple text, with one file per line, or the format created
+by the SeisAn dirf command (filenr.lis).
 
 Multiple list files can be combined with multiple input files on the
 command line.
