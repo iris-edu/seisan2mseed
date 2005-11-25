@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2005.328
+ * modified 2005.329
  ***************************************************************************/
 
 #include <stdio.h>
@@ -964,8 +964,11 @@ getoptval (int argcount, char **argvec, int argopt)
 
 /***************************************************************************
  * readlistfile:
+ *
  * Read a list of files from a file and add them to the filelist for
- * input data.
+ * input data.  The filename is expected to be the last
+ * space-separated field on the line, in this way both simple lists
+ * and various dirf (filenr.lis) formats are supported.
  *
  * Returns the number of file names parsed from the list or -1 on error.
  ***************************************************************************/
@@ -973,15 +976,14 @@ static int
 readlistfile (char *listfile)
 {
   FILE *fp;
-  char line[1024];
+  char  line[1024];
   char *ptr;
-  char lineformat;  /* 0 = simple text, 1 = dirf (filenr.lis) */
-  int  filecnt = 0;
-  int  nonspace;
-
-  int  filenr;
-  char filename[1024];
-  int  fields;
+  int   filecnt = 0;
+  
+  char  filename[1024];
+  char *lastfield = 0;
+  int   fields = 0;
+  int   wspace;
   
   /* Open the list file */
   if ( (fp = fopen (listfile, "rb")) == NULL )
@@ -1004,8 +1006,10 @@ readlistfile (char *listfile)
   
   while ( (fgets (line, sizeof(line), fp)) !=  NULL)
     {
-      /* Truncate line at first \r or \n and count non-space characters */
-      nonspace = 0;
+      /* Truncate line at first \r or \n, count space-separated fields
+       * and track last field */
+      fields = 0;
+      wspace = 0;
       ptr = line;
       while ( *ptr )
 	{
@@ -1016,50 +1020,31 @@ readlistfile (char *listfile)
 	    }
 	  else if ( *ptr != ' ' )
 	    {
-	      nonspace++;
+	      if ( wspace || ptr == line )
+		{
+		  fields++; lastfield = ptr;
+		}
+	      wspace = 0;
+	    }
+	  else
+	    {
+	      wspace = 1;
 	    }
 	  
 	  ptr++;
 	}
       
       /* Skip empty lines */
-      if ( nonspace == 0 )
+      if ( ! lastfield )
 	continue;
       
-      /* Detect line format by checking first character for # */
-      lineformat = 0;
-      ptr = line;
-      while ( *ptr )
+      if ( fields >= 1 && fields <= 3 )
 	{
-	  if ( *ptr == ' ' )
-	    {
-	      ptr++;
-	      continue;
-	    }
-	  
-	  if ( *ptr == '#' )
-	    {
-	      lineformat = 1;
-	      break;
-	    }
-	  else
-	    {
-	      lineformat = 0;
-	      break;
-	    }
-	}
-      /* 'ptr' should now point to the first non-space character */
-      
-      if ( ! *ptr )
-	continue;
-      
-      if ( lineformat == 0 )
-	{
-	  fields = sscanf (ptr, "%s", filename);
+	  fields = sscanf (lastfield, "%s", filename);
 	  
 	  if ( fields != 1 )
 	    {
-	      fprintf (stderr, "Error parsing filename from: %s\n", line);
+	      fprintf (stderr, "Error parsing file name from: %s\n", line);
 	      continue;
 	    }
 	  
@@ -1071,29 +1056,10 @@ readlistfile (char *listfile)
 	  
 	  continue;
 	}
-      
-      if ( lineformat == 1 )
-	{
-	  fields = sscanf (ptr, "#%5d %s", &filenr, filename);
-	  
-	  if ( fields != 2 )
-	    {
-	      fprintf (stderr, "Error parsing file number and name from: %s\n", line);
-	      continue;
-	    }
-	  
-	  if ( verbose > 1 )
-	    fprintf (stderr, "Adding (%d) '%s' to input file list\n", filenr, filename);
-	  
-	  addnode (&filelist, NULL, filename);
-	  filecnt++;
-	  
-	  continue;
-	}
     }
-
+  
   fclose (fp);
-
+  
   return filecnt;
 }  /* End readlistfile() */
 

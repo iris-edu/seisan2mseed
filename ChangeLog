@@ -1,7 +1,10 @@
-2005.328: 0.8.2
+2005.329: 0.8.2
 	- Update to libmseed 1.4.4.
 	- Add explicit text to man page and help message about
 	'filenr.lis' being a special case list file.
+	- List file parsing now assumes that the last, space
+	separated field on each line is the filename; accomodates
+	simple list files and various dirf (filenr.lis) formats.
 
 2005.315: 0.8.1
 	- Update to libmseed 1.4.3 which has a WIN32 define for 
