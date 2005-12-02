@@ -1,7 +1,7 @@
-.TH MS_FIND_RECLEN 3 2004/11/22 "Libmseed API"
+.TH MS_FIND_RECLEN 3 2005/12/01 "Libmseed API"
 .SH DESCRIPTION
-Search a raw Mini-SEED record for a Blockette 1000 and return the
-record size.
+Perform simple SEED data record verification, search for a
+Blockette 1000 and return the record size.
 
 .SH SYNOPSIS
 .nf
@@ -11,9 +11,15 @@ record size.
 .fi
 
 .SH DESCRIPTION
-\fBms_find_reclen\fP searches the specified raw Mini-SEED record
-(\fImsrecord\fP) up to \fImaxheaderlen\fP bytes for a Blockette 1000
-and determines the record length.
+\fBms_find_reclen\fP verifies the specified \fImsrecord\fP buffer
+contains a SEED data record, searches the record up to
+\fImaxheaderlen\fP bytes for a Blockette 1000 and determines the
+record length.
+
+To verify that the buffer contains a SEED data record the routine
+checks that it starts with 6 ASCII characters (the sequence
+number) followed by a valid data record indicator (D, R or Q) followed
+by a space character.
 
 A Mini-SEED record is, by definition, a data record that includes a
 Blockette 1000.  This routine will not be able to determine the record
@@ -22,7 +28,8 @@ length of a plain SEED data record that does not include a Blockette
 
 .SH RETURN VALUES
 \fBms_find_reclen\fP returns the length of the Mini-SEED record in
-bytes, 0 if no Blockette 1000 was found and -1 on error.
+bytes or 0 if a data record was detected but no Blockette 1000 was
+found or -1 when no data record was detected.
 
 .SH SEE ALSO
 \fBms_readmsr(3)\fP, \fBms_readtraces(3)\fP and \fBmsr_unpack(3)\fP.

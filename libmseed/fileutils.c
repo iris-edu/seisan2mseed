@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, ORFEUS/EC-Project MEREDIAN
  *
- * modified: 2005.117
+ * modified: 2005.335
  ***************************************************************************/
 
 #include <stdio.h>
@@ -146,13 +146,17 @@ ms_readmsr (char *msfile, int reclen, off_t *fpos, int *last,
 	      return NULL;
 	    }
 	  
+	  /* Test for data record and return record length */
 	  if ( (detsize = ms_find_reclen (rawrec, readlen)) > 0 )
 	    {
 	      break;
 	    }
 	  
-	  if ( skipnotdata && ! MS_ISDATAINDICATOR(*(rawrec+6)) )
+	  /* Skip if data record not detected */
+	  if ( skipnotdata && detsize == -1 )
 	    {
+	      detsize = -1;
+
 	      if ( verbose > 1 )
 		{
 		  if ( fpos != NULL )
@@ -161,9 +165,9 @@ ms_readmsr (char *msfile, int reclen, off_t *fpos, int *last,
 		    fprintf (stderr, "Skipped non-data record\n");		
 		}
 	    }
+	  /* Otherwise increase read length to the next record size up */
 	  else
 	    {
-	      /* Increase read length to the next record size up */
 	      prevreadlen = readlen;
 	      autodetexp++;
 	      readlen = (unsigned int) 1 << autodetexp;

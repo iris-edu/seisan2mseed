@@ -7,13 +7,14 @@
  * ORFEUS/EC-Project MEREDIAN
  * IRIS Data Management Center
  *
- * modified: 2005.091
+ * modified: 2005.335
  ***************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <ctype.h>
 
 #include "libmseed.h"
 
@@ -23,11 +24,14 @@ static hptime_t ms_time2hptime_int (int year, int day, int hour,
 /*********************************************************************
  * ms_find_reclen:
  *
- * Search for a 1000 blockette in a MiniSEED data record up to
- * maxheaderlen bytes and return the record size.
+ * Perform simple SEED data record verification and search for a 1000
+ * blockette up to maxheaderlen bytes and return the record size if
+ * found.
  *
- * Returns size of the record in bytes, 0 if 1000 blockette was not
- * found or -1 on error.
+ * Returns:
+ * -1 : data record not detected or error
+ *  0 : data record detected but no 1000 blockette found
+ * >0 : size of the record in bytes
  *********************************************************************/
 int
 ms_find_reclen ( const char *msrecord, int maxheaderlen )
@@ -43,8 +47,19 @@ ms_find_reclen ( const char *msrecord, int maxheaderlen )
   struct fsdh_s *fsdh;
   struct blkt_1000_s *blkt_1000;
   
-  /* Simple verification of a data record */
-  if ( ! MS_ISDATAINDICATOR(*(msrecord+6)) )
+  /* Simple verification of a data record:
+   * 1) first 6 characters are digits (sequence number)
+   * 2) 7th character is a valid data record indicator
+   * 3) 8th character is an ASCII space or NULL [not valid SEED]
+   */
+  if ( ! isdigit (*(msrecord)) ||
+       ! isdigit (*(msrecord+1)) ||
+       ! isdigit (*(msrecord+2)) ||
+       ! isdigit (*(msrecord+3)) ||
+       ! isdigit (*(msrecord+4)) ||
+       ! isdigit (*(msrecord+5)) ||
+       ! MS_ISDATAINDICATOR(*(msrecord+6)) ||
+       ! (*(msrecord+7) == ' ' || *(msrecord+7) == '\0') )
     return -1;
   
   fsdh = (struct fsdh_s *) msrecord;
