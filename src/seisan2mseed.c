@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2005.329
+ * modified 2005.336
  ***************************************************************************/
 
 #include <stdio.h>
@@ -27,7 +27,8 @@ struct listnode {
 
 static void packtraces (flag flush);
 static int seisan2group (char *seisanfile, TraceGroup *mstg);
-static int detectformat (FILE *ifp, char *formatflag, char *swapflag, char *seisanfile);
+static int detectformat (FILE *ifp, flag *formatflag, flag *swapflag, char *seisanfile);
+static int32_t *mkhostdata (char *data, int datalen, int datasamplesize, flag swapflag);
 static int translatechan (char *component, char *channel, char *location);
 static int parameter_proc (int argcount, char **argvec);
 static char *getoptval (int argcount, char **argvec, int argopt);
@@ -175,8 +176,8 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
   char *record = 0;
   size_t recordbufsize = 0;
   
-  char swapflag = -1;
-  char formatflag = 0;  /* 1: PC SeisAn <= 6.0, 4: SeisAn >= 7.0 */
+  flag swapflag = -1;
+  flag formatflag = 0;  /* 1: PC SeisAn <= 6.0, 4: SeisAn >= 7.0 */
   uint8_t reclen1 = 0;
   uint8_t reclenmirror1 = 0;
   uint32_t reclen4 = 0;
@@ -197,12 +198,6 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
   int datasamplesize = 0;
   int expectdatalen = 0;
   
-  int32_t *samplebuffer = 0;
-  int maxsamplebufferlen = 0;
-  int numsamples = 0;
-  int32_t *sampleptr4 = 0;
-  int16_t *sampleptr2 = 0;
-
   char component[5];
   long year;
   char timestr[30];
@@ -526,56 +521,8 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	    }
 
 	  /* Make sure we have 32-bit integers in host byte order */
-	  if ( datasamplesize == 2 )
-	    {
-	      msr->datasamples = samplebuffer;
-
-	      if ( (datalen * 2) > maxsamplebufferlen )
-		{
-		  if ( (samplebuffer = realloc (samplebuffer, (datalen*2))) == NULL )
-		    {
-		      fprintf (stderr, "Error allocating memory for sample buffer\n");
-		      break;
-		    }
-		  else
-		    maxsamplebufferlen = datalen * 2;
-		}
-	      
-	      sampleptr2 = (int16_t *) data;
-	      sampleptr4 = samplebuffer;
-	      numsamples = msr->numsamples;
-	      
-	      /* Convert to 32-bit and swap data samples if needed */
-	      while (numsamples--)
-		{
-		  if ( swapflag )
-		    gswap2a (sampleptr2);
-		  
-		  *(sampleptr4++) = *(sampleptr2++);
-		}
-	    }
-	  else if ( datasamplesize == 4 )
-	    {
-	      msr->datasamples = data;
-	      
-	      /* Swap data samples if needed */
-	      if ( swapflag )
-		{
-		  sampleptr4 = (int32_t *) msr->datasamples;
-		  numsamples = msr->numsamples;
-		  
-		  while (numsamples--)
-		    gswap4a (sampleptr4++);
-		}
-	      
-	      if ( verbose > 1 && encoding == 1 )
-		fprintf (stderr, "WARNING: attempting to pack 32-bit integers into 16-bit encoding\n");
-	    }
-	  else
-	    {
-	      fprintf (stderr, "Error, unknown data sample size: %d\n", datasamplesize);
-	      break;
-	    }
+	  if ( ! (msr->datasamples = mkhostdata (data, datalen, datasamplesize, swapflag)) )
+	    break;
 	  
 	  /* Add data to TraceGroup */
 	  msr->sampletype = 'i';
@@ -651,9 +598,6 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
   
   if ( data )
     free (data);
-
-  if ( samplebuffer )
-    free (samplebuffer);
   
   if ( record )
     free (record);
@@ -673,7 +617,7 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
  * Returns 0 on sucess and -1 on failure.
  ***************************************************************************/
 static int
-detectformat (FILE *ifp, char *formatflag, char *swapflag, char *seisanfile)
+detectformat (FILE *ifp, flag *formatflag, flag *swapflag, char *seisanfile)
 {
   int32_t ident;
   
@@ -721,6 +665,95 @@ detectformat (FILE *ifp, char *formatflag, char *swapflag, char *seisanfile)
   
   return -1;
 }  /* End of detectformat() */
+
+
+/***************************************************************************
+ * mkhostdata:
+ *
+ * Given the raw input data return a buffer of 32-bit integers in host
+ * byte order.  The routine may modified the contents of the supplied
+ * data sample buffer.
+ *
+ * A buffer used for 16->32 bit conversions is statically maintained
+ * for re-use.  If 'data' is specified as 0 this internal buffer will
+ * be released.
+ *
+ * Returns a pointer on success and 0 on failure or reset.
+ ***************************************************************************/
+static int32_t *
+mkhostdata (char *data, int datalen, int datasamplesize, flag swapflag)
+{
+  static int32_t *samplebuffer = 0;
+  static int maxsamplebufferlen = 0;
+  
+  int32_t *hostdata = 0;
+  int32_t *sampleptr4;
+  int16_t *sampleptr2;
+  int numsamples;
+  
+  if ( ! data )
+    {
+      if ( samplebuffer )
+	free (samplebuffer);
+      samplebuffer = 0;
+      maxsamplebufferlen = 0;
+      
+      return 0;
+    }
+  
+  if ( datasamplesize == 2 )
+    {
+      if ( (datalen * 2) > maxsamplebufferlen )
+	{
+	  if ( (samplebuffer = realloc (samplebuffer, (datalen*2))) == NULL )
+	    {
+	      fprintf (stderr, "Error allocating memory for sample buffer\n");
+	      return 0;
+	    }
+	  else
+	    maxsamplebufferlen = datalen * 2;
+	}
+      
+      sampleptr2 = (int16_t *) data;
+      sampleptr4 = samplebuffer;
+      numsamples = datalen / datasamplesize;
+      
+      /* Convert to 32-bit and swap data samples if needed */
+      while (numsamples--)
+	{
+	  if ( swapflag )
+	    gswap2a (sampleptr2);
+	  
+	  *(sampleptr4++) = *(sampleptr2++);
+	}
+      
+      hostdata = samplebuffer;
+    }
+  else if ( datasamplesize == 4 )
+    {
+      /* Swap data samples if needed */
+      if ( swapflag )
+	{
+	  sampleptr4 = (int32_t *) data;
+	  numsamples = datalen / datasamplesize;
+	  
+	  while (numsamples--)
+	    gswap4a (sampleptr4++);
+	}
+      
+      if ( verbose > 1 && encoding == 1 )
+	fprintf (stderr, "WARNING: attempting to pack 32-bit integers into 16-bit encoding\n");
+      
+      hostdata = (int32_t *) data;
+    }
+  else
+    {
+      fprintf (stderr, "Error, unknown data sample size: %d\n", datasamplesize);
+      return 0;
+    }
+  
+  return hostdata;
+}  /* End of mkhostdata() */
 
 
 /***************************************************************************
