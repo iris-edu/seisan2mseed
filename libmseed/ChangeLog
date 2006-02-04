@@ -1,10 +1,11 @@
-2005.335: 1.4.5
+2005.336: 1.4.5
 	- Improve the data record verification in ms_find_reclen() to
 	improve the detection of non-data versus data records.  In
 	particular the routine now requires a record to start with 
 	6 ASCII digits followed by a valid data record indicator
 	followed by either a space or NULL character (even though
 	a NULL here is not valid SEED).
+	- Fix mst_groupsort for near srcname matches.
 
 2005.325: 1.4.4
 	- Add end time sort level to mst_groupsort(), now the function

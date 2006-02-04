@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified: 2005.325
+ * modified: 2005.336
  ***************************************************************************/
 
 #include <stdio.h>
@@ -806,7 +806,7 @@ mst_groupsort ( TraceGroup *mstg )
 	 * otherwise, if sample rates match, make sure the later start time is 2nd
 	 * otherwise, if start times match, make sure the earlier end time is 2nd
 	 */
-	if ( strcmpval > 1 )
+	if ( strcmpval > 0 )
 	  {
 	    swap = 1;
 	  }
