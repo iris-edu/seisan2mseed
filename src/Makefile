@@ -4,7 +4,7 @@ CFLAGS = -O -I../libmseed
 
 # Options specific for GCC
 GCC = gcc
-GCCFLAGS = -g -O2 -Wall -I../libmseed
+GCCFLAGS = -O2 -Wall -I../libmseed
 
 LDFLAGS = -L../libmseed
 LDLIBS = -lmseed -lm
