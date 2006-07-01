@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2005.336
+ * modified 2006.182
  ***************************************************************************/
 
 #include <stdio.h>
@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "1.0"
+#define VERSION "1.1dev"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -26,7 +26,7 @@ struct listnode {
 };
 
 static void packtraces (flag flush);
-static int seisan2group (char *seisanfile, TraceGroup *mstg);
+static int seisan2group (char *seisanfile, MSTraceGroup *mstg);
 static int detectformat (FILE *ifp, flag *formatflag, flag *swapflag, char *seisanfile);
 static int32_t *mkhostdata (char *data, int datalen, int datasamplesize, flag swapflag);
 static int translatechan (char *component, char *channel, char *location);
@@ -55,7 +55,7 @@ struct listnode *filelist = 0;
 /* A list of component to channel translations */
 struct listnode *chanlist = 0;
 
-static TraceGroup *mstg = 0;
+static MSTraceGroup *mstg = 0;
 
 static int packedtraces  = 0;
 static int packedsamples = 0;
@@ -70,7 +70,7 @@ main (int argc, char **argv)
   if (parameter_proc (argc, argv) < 0)
     return -1;
   
-  /* Init TraceGroup */
+  /* Init MSTraceGroup */
   mstg = mst_initgroup (mstg);
   
   /* Open the output file if specified */
@@ -88,7 +88,7 @@ main (int argc, char **argv)
         }
     }
   
-  /* Read input SeisAn files into TraceGroup */
+  /* Read input SeisAn files into MSTraceGroup */
   flp = filelist;
   while ( flp != 0 )
     {
@@ -120,14 +120,14 @@ main (int argc, char **argv)
 /***************************************************************************
  * packtraces:
  *
- * Pack all traces in a group using per-Trace templates.
+ * Pack all traces in a group using per-MSTrace templates.
  *
  * Returns 0 on success, and -1 on failure
  ***************************************************************************/
 static void
 packtraces (flag flush)
 {
-  Trace *mst;
+  MSTrace *mst;
   int trpackedsamples = 0;
   int trpackedrecords = 0;
   
@@ -141,7 +141,7 @@ packtraces (flag flush)
 	}
       
       trpackedrecords = mst_pack (mst, &record_handler, packreclen, encoding, byteorder,
-				  &trpackedsamples, flush, verbose-2, (MSrecord *) mst->private);
+				  &trpackedsamples, flush, verbose-2, (MSRecord *) mst->private);
       if ( trpackedrecords < 0 )
 	{
 	  fprintf (stderr, "Error packing data\n");
@@ -159,18 +159,18 @@ packtraces (flag flush)
 
 /***************************************************************************
  * seian2group:
- * Read a SeisAn file and add data samples to a TraceGroup.  As the SeisAn
- * data is read in a MSrecord struct is used as a holder for the input
+ * Read a SeisAn file and add data samples to a MSTraceGroup.  As the SeisAn
+ * data is read in a MSRecord struct is used as a holder for the input
  * information.
  *
  * Returns 0 on success, and -1 on failure
  ***************************************************************************/
 static int
-seisan2group (char *seisanfile, TraceGroup *mstg)
+seisan2group (char *seisanfile, MSTraceGroup *mstg)
 {
   FILE *ifp = 0;
-  MSrecord *msr = 0;
-  Trace *mst;
+  MSRecord *msr = 0;
+  MSTrace *mst;
   struct blkt_100_s Blkt100;
   
   char *record = 0;
@@ -280,7 +280,7 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
   
   if ( ! (msr = msr_init(msr)) )
     {
-      fprintf (stderr, "Cannot initialize MSrecord strcture\n");
+      fprintf (stderr, "Cannot initialize MSRecord strcture\n");
       return -1;
     }
   
@@ -524,7 +524,7 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 	  if ( ! (msr->datasamples = mkhostdata (data, datalen, datasamplesize, swapflag)) )
 	    break;
 	  
-	  /* Add data to TraceGroup */
+	  /* Add data to MSTraceGroup */
 	  msr->sampletype = 'i';
 	  
 	  if ( verbose > 1 )
@@ -534,42 +534,42 @@ seisan2group (char *seisanfile, TraceGroup *mstg)
 		       msr->network, msr->station,  msr->location, msr->channel);
 	    }
 	  
-	  if ( ! (mst = mst_addmsrtogroup (mstg, msr, -1.0, -1.0)) )
+	  if ( ! (mst = mst_addmsrtogroup (mstg, msr, 0, -1.0, -1.0)) )
 	    {
-	      fprintf (stderr, "[%s] Error adding samples to TraceGroup\n", seisanfile);
+	      fprintf (stderr, "[%s] Error adding samples to MSTraceGroup\n", seisanfile);
 	    }
 	  
-	  /* Create an MSrecord template for the Trace by copying the current holder */
+	  /* Create an MSRecord template for the MSTrace by copying the current holder */
 	  if ( ! mst->private )
 	    {
-	      mst->private = malloc (sizeof(MSrecord));
+	      mst->private = malloc (sizeof(MSRecord));
 	    }
 
-	  memcpy (mst->private, msr, sizeof(MSrecord));
+	  memcpy (mst->private, msr, sizeof(MSRecord));
 	  
 	  /* If a blockette 100 is requested add it */
 	  if ( srateblkt )
 	    {
 	      memset (&Blkt100, 0, sizeof(struct blkt_100_s));
 	      Blkt100.samprate = (float) msr->samprate;
-	      msr_addblockette ((MSrecord *) mst->private, (char *) &Blkt100,
+	      msr_addblockette ((MSRecord *) mst->private, (char *) &Blkt100,
 				sizeof(struct blkt_100_s), 100, 0);
 	    }
 	  
 	  /* Create a FSDH for the template */
-	  if ( ! ((MSrecord *)mst->private)->fsdh )
+	  if ( ! ((MSRecord *)mst->private)->fsdh )
 	    {
-	      ((MSrecord *)mst->private)->fsdh = malloc (sizeof(struct fsdh_s));
-	      memset (((MSrecord *)mst->private)->fsdh, 0, sizeof(struct fsdh_s));
+	      ((MSRecord *)mst->private)->fsdh = malloc (sizeof(struct fsdh_s));
+	      memset (((MSRecord *)mst->private)->fsdh, 0, sizeof(struct fsdh_s));
 	    }
 	  
 	  /* Set bit 7 (time tag questionable) in the data quality flags appropriately */
 	  if ( uctimeflag )
-	    ((MSrecord *)mst->private)->fsdh->dq_flags |= 0x80;
+	    ((MSRecord *)mst->private)->fsdh->dq_flags |= 0x80;
 	  else
-	    ((MSrecord *)mst->private)->fsdh->dq_flags &= ~(0x80);
+	    ((MSRecord *)mst->private)->fsdh->dq_flags &= ~(0x80);
 	  
-	  /* Unless buffering all files in memory pack any Traces now */
+	  /* Unless buffering all files in memory pack any MSTraces now */
 	  if ( ! bufferall )
 	    {
 	      packtraces (1);
