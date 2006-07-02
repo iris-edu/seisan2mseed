@@ -1,4 +1,4 @@
-2006.182:
+2006.182: version 1.7
 	- Add MS_WRONGLENGTH error code and have msr_unpack() and the
 	file reading routines return it when the read length does not match
 	length specified in the Blockette 1000.  This most commonly occurs
