@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2006.182
+ * modified 2006.208
  ***************************************************************************/
 
 #include <stdio.h>
@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "1.1"
+#define VERSION "1.2"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -108,8 +108,6 @@ main (int argc, char **argv)
 	   packedtraces, packedsamples, packedrecords);
   
   /* Make sure everything is cleaned up */
-  mst_freegroup (&mstg);
-  
   if ( ofp )
     fclose (ofp);
   
