@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2006.208
+ * modified 2007.284
  ***************************************************************************/
 
 #include <stdio.h>
@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "1.2"
+#define VERSION "1.3"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
