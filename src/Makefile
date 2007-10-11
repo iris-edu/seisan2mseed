@@ -1,10 +1,10 @@
 
-# Standard compiler parameters
-CFLAGS = -O -I../libmseed
-
 # Options specific for GCC
 GCC = gcc
 GCCFLAGS = -O2 -Wall -I../libmseed
+
+# Required compiler parameters
+REQCFLAGS = -I../libmseed
 
 LDFLAGS = -L../libmseed
 LDLIBS = -lmseed -lm
@@ -42,6 +42,10 @@ gcc32debug:
 
 gcc64debug:
 	$(MAKE) "CC=$(GCC)" "CFLAGS=-g -m64 $(GCCFLAGS)"
+
+# Implicit rule for building object files
+%.o: %.c
+	$(CC) $(CFLAGS) $(REQCFLAGS) -c $<
 
 install:
 	@echo

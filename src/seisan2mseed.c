@@ -35,7 +35,7 @@ static char *getoptval (int argcount, char **argvec, int argopt);
 static int readlistfile (char *listfile);
 static void addnode (struct listnode **listroot, char *key, char *data);
 static void addmapnode (struct listnode **listroot, char *mapping);
-static void record_handler (char *record, int reclen);
+static void record_handler (char *record, int reclen, void *handlerdata);
 static void usage (void);
 
 static int   verbose     = 0;
@@ -138,8 +138,8 @@ packtraces (flag flush)
 	  continue;
 	}
       
-      trpackedrecords = mst_pack (mst, &record_handler, packreclen, encoding, byteorder,
-				  &trpackedsamples, flush, verbose-2, (MSRecord *) mst->private);
+      trpackedrecords = mst_pack (mst, &record_handler, 0, packreclen, encoding, byteorder,
+				  &trpackedsamples, flush, verbose-2, (MSRecord *) mst->prvtptr);
       if ( trpackedrecords < 0 )
 	{
 	  fprintf (stderr, "Error packing data\n");
@@ -308,7 +308,7 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
 	      break;
 	    }
 	  
-	  if ( swapflag ) gswap4 ( &reclen4 );
+	  if ( swapflag ) ms_gswap4 ( &reclen4 );
 	  reclen = reclen4;
 	}
       
@@ -364,7 +364,7 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
 		fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
 	      break;
 	    }
-	  if ( swapflag ) gswap4 ( &reclenmirror4 );
+	  if ( swapflag ) ms_gswap4 ( &reclenmirror4 );
 	  if ( reclen4 != reclenmirror4 )
 	    {
 	      fprintf (stderr, "At byte offset %lld in %s:\n", (long long) filepos, seisanfile);
@@ -538,34 +538,34 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
 	    }
 	  
 	  /* Create an MSRecord template for the MSTrace by copying the current holder */
-	  if ( ! mst->private )
+	  if ( ! mst->prvtptr )
 	    {
-	      mst->private = malloc (sizeof(MSRecord));
+	      mst->prvtptr = malloc (sizeof(MSRecord));
 	    }
 
-	  memcpy (mst->private, msr, sizeof(MSRecord));
+	  memcpy (mst->prvtptr, msr, sizeof(MSRecord));
 	  
 	  /* If a blockette 100 is requested add it */
 	  if ( srateblkt )
 	    {
 	      memset (&Blkt100, 0, sizeof(struct blkt_100_s));
 	      Blkt100.samprate = (float) msr->samprate;
-	      msr_addblockette ((MSRecord *) mst->private, (char *) &Blkt100,
+	      msr_addblockette ((MSRecord *) mst->prvtptr, (char *) &Blkt100,
 				sizeof(struct blkt_100_s), 100, 0);
 	    }
 	  
 	  /* Create a FSDH for the template */
-	  if ( ! ((MSRecord *)mst->private)->fsdh )
+	  if ( ! ((MSRecord *)mst->prvtptr)->fsdh )
 	    {
-	      ((MSRecord *)mst->private)->fsdh = malloc (sizeof(struct fsdh_s));
-	      memset (((MSRecord *)mst->private)->fsdh, 0, sizeof(struct fsdh_s));
+	      ((MSRecord *)mst->prvtptr)->fsdh = malloc (sizeof(struct fsdh_s));
+	      memset (((MSRecord *)mst->prvtptr)->fsdh, 0, sizeof(struct fsdh_s));
 	    }
 	  
 	  /* Set bit 7 (time tag questionable) in the data quality flags appropriately */
 	  if ( uctimeflag )
-	    ((MSRecord *)mst->private)->fsdh->dq_flags |= 0x80;
+	    ((MSRecord *)mst->prvtptr)->fsdh->dq_flags |= 0x80;
 	  else
-	    ((MSRecord *)mst->private)->fsdh->dq_flags &= ~(0x80);
+	    ((MSRecord *)mst->prvtptr)->fsdh->dq_flags &= ~(0x80);
 	  
 	  /* Unless buffering all files in memory pack any MSTraces now */
 	  if ( ! bufferall )
@@ -652,7 +652,7 @@ detectformat (FILE *ifp, flag *formatflag, flag *swapflag, char *seisanfile)
     }
   
   /* Swap and test if the ident is 80 */
-  gswap4 ( &ident );
+  ms_gswap4 ( &ident );
   if ( ident == 80 )
     {
       *formatflag = 4;
@@ -720,7 +720,7 @@ mkhostdata (char *data, int datalen, int datasamplesize, flag swapflag)
       while (numsamples--)
 	{
 	  if ( swapflag )
-	    gswap2a (sampleptr2);
+	    ms_gswap2a (sampleptr2);
 	  
 	  *(sampleptr4++) = *(sampleptr2++);
 	}
@@ -736,7 +736,7 @@ mkhostdata (char *data, int datalen, int datasamplesize, flag swapflag)
 	  numsamples = datalen / datasamplesize;
 	  
 	  while (numsamples--)
-	    gswap4a (sampleptr4++);
+	    ms_gswap4a (sampleptr4++);
 	}
       
       if ( verbose > 1 && encoding == 1 )
@@ -1170,7 +1170,7 @@ addmapnode (struct listnode **listroot, char *mapping)
  * Saves passed records to the output file.
  ***************************************************************************/
 static void
-record_handler (char *record, int reclen)
+record_handler (char *record, int reclen, void *handlerdata)
 {
   if ( fwrite(record, reclen, 1, ofp) != 1 )
     {
