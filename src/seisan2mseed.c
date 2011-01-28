@@ -234,7 +234,8 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
       {
 	if ( ferror(ifp) )
 	  fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
-	break;
+
+	return -1;
       }
   
   /* Report format and byte order detection results */
