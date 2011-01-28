@@ -413,6 +413,12 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
 	  
 	  translatechan (component, msr->channel, msr->location);
 	  
+	  if ( verbose > 1 )
+	    {
+	      fprintf (stderr, "[%s] SeisAn channel: '%s', SEED channel: '%s'\n",
+		       seisanfile, component, msr->channel);
+	    }
+	  
 	  if ( forceloc )
 	    ms_strncpclean (msr->location, forceloc, 2);
 	  
