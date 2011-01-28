@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2007.284
+ * modified 2011.028
  ***************************************************************************/
 
 #include <stdio.h>
@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "1.5"
+#define VERSION "1.6dev"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -230,7 +230,12 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
   
   /* Read the signature character for formatflag == 1, it's not needed. */
   if ( formatflag == 1 )
-    fread (&reclen1, 1, 1, ifp);
+    if ( fread (&reclen1, 1, 1, ifp) < 1 )
+      {
+	if ( ferror(ifp) )
+	  fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
+	break;
+      }
   
   /* Report format and byte order detection results */
   if ( verbose > 1 )
