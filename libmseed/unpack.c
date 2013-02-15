@@ -13,7 +13,7 @@
  *   ORFEUS/EC-Project MEREDIAN
  *   IRIS Data Management Center
  *
- * modified: 2009.201
+ * modified: 2012.363
  ***************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +25,6 @@
 #include "unpackdata.h"
 
 /* Function(s) internal to this file */
-static int msr_unpack_data (MSRecord * msr, int swapflag, int verbose);
 static int check_environment (int verbose);
 
 /* Header and data byte order flags controlled by environment variables */
@@ -173,13 +172,13 @@ msr_unpack ( char *record, int reclen, MSRecord **ppmsr,
     }
   
   /* Populate some of the common header fields */
-  ms_strncpclean (sequence_number, msr->fsdh->sequence_number, 6);
+  strncpy (sequence_number, msr->fsdh->sequence_number, 6);
   msr->sequence_number = (int32_t) strtol (sequence_number, NULL, 10);
   msr->dataquality = msr->fsdh->dataquality;
-  ms_strncpclean (msr->network, msr->fsdh->network, 2);
-  ms_strncpclean (msr->station, msr->fsdh->station, 5);
-  ms_strncpclean (msr->location, msr->fsdh->location, 2);
-  ms_strncpclean (msr->channel, msr->fsdh->channel, 3);
+  ms_strncpcleantail (msr->network, msr->fsdh->network, 2);
+  ms_strncpcleantail (msr->station, msr->fsdh->station, 5);
+  ms_strncpcleantail (msr->location, msr->fsdh->location, 2);
+  ms_strncpcleantail (msr->channel, msr->fsdh->channel, 3);
   msr->samplecnt = msr->fsdh->numsamples;
   
   /* Generate source name for MSRecord */
@@ -207,7 +206,7 @@ msr_unpack ( char *record, int reclen, MSRecord **ppmsr,
   blkt_offset = msr->fsdh->blockette_offset;
   
   while ((blkt_offset != 0) &&
-	 (blkt_offset < reclen) &&
+	 ((int)blkt_offset < reclen) &&
 	 (blkt_offset < MAXRECLEN))
     {
       /* Every blockette has a similar 4 byte header: type and next */
@@ -235,7 +234,7 @@ msr_unpack ( char *record, int reclen, MSRecord **ppmsr,
 	}
       
       /* Make sure blockette is contained within the msrecord buffer */
-      if ( (blkt_offset - 4 + blkt_length) > reclen )
+      if ( (int)(blkt_offset - 4 + blkt_length) > reclen )
 	{
 	  ms_log (2, "msr_unpack(%s): Blockette %d extends beyond record size, truncated?\n",
 		  UNPACK_SRCNAME, blkt_type);
@@ -679,9 +678,11 @@ msr_unpack ( char *record, int reclen, MSRecord **ppmsr,
 	{
 	  dswapflag = 0;
 	  
+	  /* If BE host and LE data need swapping */
 	  if ( bigendianhost && msr->byteorder == 0 )
 	    dswapflag = 1;
-	  else if ( !bigendianhost && msr->byteorder == 1 )
+	  /* If LE host and BE data (or bad byte order value) need swapping */
+	  else if ( !bigendianhost && msr->byteorder > 0 )
 	    dswapflag = 1;
 	}
       else if ( unpackdatabyteorder >= 0 )
@@ -730,8 +731,8 @@ msr_unpack ( char *record, int reclen, MSRecord **ppmsr,
  *
  *  Return number of samples unpacked or negative libmseed error code.
  ************************************************************************/
-static int
-msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
+int
+msr_unpack_data ( MSRecord *msr, int swapflag, flag verbose )
 {
   int     datasize;             /* byte size of data samples in record 	*/
   int     nsamples;		/* number of samples unpacked		*/
@@ -772,7 +773,7 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
     }
   
   /* Calculate buffer size needed for unpacked samples */
-  unpacksize = msr->samplecnt * samplesize;
+  unpacksize = (int) msr->samplecnt * samplesize;
   
   /* (Re)Allocate space for the unpacked data */
   if ( unpacksize > 0 )
@@ -798,8 +799,8 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
   dbuf = msr->record + msr->fsdh->data_offset;
   
   if ( verbose > 2 )
-    ms_log (1, "%s: Unpacking %d samples\n",
-	    UNPACK_SRCNAME, msr->samplecnt);
+    ms_log (1, "%s: Unpacking %lld samples\n",
+	    UNPACK_SRCNAME, (long long int)msr->samplecnt);
   
   /* Decide if this is a encoding that we can decode */
   switch (msr->encoding)
@@ -809,7 +810,7 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
       if ( verbose > 1 )
 	ms_log (1, "%s: Found ASCII data\n", UNPACK_SRCNAME);
       
-      nsamples = msr->samplecnt;
+      nsamples = (int)msr->samplecnt;
       memcpy (msr->datasamples, dbuf, nsamples);
       msr->sampletype = 'a';      
       break;
@@ -818,8 +819,8 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
       if ( verbose > 1 )
 	ms_log (1, "%s: Unpacking INT-16 data samples\n", UNPACK_SRCNAME);
       
-      nsamples = msr_unpack_int_16 ((int16_t *)dbuf, msr->samplecnt,
-				    msr->samplecnt, msr->datasamples,
+      nsamples = msr_unpack_int_16 ((int16_t *)dbuf, (int)msr->samplecnt,
+				    (int)msr->samplecnt, msr->datasamples,
 				    swapflag);
       msr->sampletype = 'i';
       break;
@@ -828,8 +829,8 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
       if ( verbose > 1 )
 	ms_log (1, "%s: Unpacking INT-32 data samples\n", UNPACK_SRCNAME);
       
-      nsamples = msr_unpack_int_32 ((int32_t *)dbuf, msr->samplecnt,
-				    msr->samplecnt, msr->datasamples,
+      nsamples = msr_unpack_int_32 ((int32_t *)dbuf, (int)msr->samplecnt,
+				    (int)msr->samplecnt, msr->datasamples,
 				    swapflag);
       msr->sampletype = 'i';
       break;
@@ -838,8 +839,8 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
       if ( verbose > 1 )
 	ms_log (1, "%s: Unpacking FLOAT-32 data samples\n", UNPACK_SRCNAME);
       
-      nsamples = msr_unpack_float_32 ((float *)dbuf, msr->samplecnt,
-				      msr->samplecnt, msr->datasamples,
+      nsamples = msr_unpack_float_32 ((float *)dbuf, (int)msr->samplecnt,
+				      (int)msr->samplecnt, msr->datasamples,
 				      swapflag);
       msr->sampletype = 'f';
       break;
@@ -848,8 +849,8 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
       if ( verbose > 1 )
 	ms_log (1, "%s: Unpacking FLOAT-64 data samples\n", UNPACK_SRCNAME);
       
-      nsamples = msr_unpack_float_64 ((double *)dbuf, msr->samplecnt,
-				      msr->samplecnt, msr->datasamples,
+      nsamples = msr_unpack_float_64 ((double *)dbuf, (int)msr->samplecnt,
+				      (int)msr->samplecnt, msr->datasamples,
 				      swapflag);
       msr->sampletype = 'd';
       break;
@@ -866,8 +867,8 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
       if ( verbose > 1 )
 	ms_log (1, "%s: Unpacking Steim-1 data frames\n", UNPACK_SRCNAME);
       
-      nsamples = msr_unpack_steim1 ((FRAME *)dbuf, datasize, msr->samplecnt,
-				    msr->samplecnt, msr->datasamples, diffbuff, 
+      nsamples = msr_unpack_steim1 ((FRAME *)dbuf, datasize, (int)msr->samplecnt,
+				    (int)msr->samplecnt, msr->datasamples, diffbuff, 
 				    &x0, &xn, swapflag, verbose);
       msr->sampletype = 'i';
       free (diffbuff);
@@ -885,8 +886,8 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
       if ( verbose > 1 )
 	ms_log (1, "%s: Unpacking Steim-2 data frames\n", UNPACK_SRCNAME);
       
-      nsamples = msr_unpack_steim2 ((FRAME *)dbuf, datasize, msr->samplecnt,
-				    msr->samplecnt, msr->datasamples, diffbuff,
+      nsamples = msr_unpack_steim2 ((FRAME *)dbuf, datasize, (int)msr->samplecnt,
+				    (int)msr->samplecnt, msr->datasamples, diffbuff,
 				    &x0, &xn, swapflag, verbose);
       msr->sampletype = 'i';
       free (diffbuff);
@@ -908,7 +909,7 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
 		    UNPACK_SRCNAME);
 	}
       
-      nsamples = msr_unpack_geoscope (dbuf, msr->samplecnt, msr->samplecnt,
+      nsamples = msr_unpack_geoscope (dbuf, (int)msr->samplecnt, (int)msr->samplecnt,
 				      msr->datasamples, msr->encoding, swapflag);
       msr->sampletype = 'f';
       break;
@@ -917,7 +918,7 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
       if ( verbose > 1 )
 	ms_log (1, "%s: Unpacking CDSN encoded data samples\n", UNPACK_SRCNAME);
       
-      nsamples = msr_unpack_cdsn ((int16_t *)dbuf, msr->samplecnt, msr->samplecnt,
+      nsamples = msr_unpack_cdsn ((int16_t *)dbuf, (int)msr->samplecnt, (int)msr->samplecnt,
 				  msr->datasamples, swapflag);
       msr->sampletype = 'i';
       break;
@@ -926,7 +927,7 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
       if ( verbose > 1 )
 	ms_log (1, "%s: Unpacking SRO encoded data samples\n", UNPACK_SRCNAME);
       
-      nsamples = msr_unpack_sro ((int16_t *)dbuf, msr->samplecnt, msr->samplecnt,
+      nsamples = msr_unpack_sro ((int16_t *)dbuf, (int)msr->samplecnt, (int)msr->samplecnt,
 				 msr->datasamples, swapflag);
       msr->sampletype = 'i';
       break;
@@ -935,7 +936,7 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
       if ( verbose > 1 )
 	ms_log (1, "%s: Unpacking DWWSSN encoded data samples\n", UNPACK_SRCNAME);
       
-      nsamples = msr_unpack_dwwssn ((int16_t *)dbuf, msr->samplecnt, msr->samplecnt,
+      nsamples = msr_unpack_dwwssn ((int16_t *)dbuf, (int)msr->samplecnt, (int)msr->samplecnt,
 				    msr->datasamples, swapflag);
       msr->sampletype = 'i';
       break;
@@ -954,7 +955,7 @@ msr_unpack_data ( MSRecord *msr, int swapflag, int verbose )
 /************************************************************************
  *  check_environment:
  *
- *  Check environment variables and set global variables approriately.
+ *  Check environment variables and set global variables appropriately.
  *  
  *  Return 0 on success and -1 on error.
  ************************************************************************/

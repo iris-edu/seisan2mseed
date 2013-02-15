@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2011.028
+ * modified 2013.045
  ***************************************************************************/
 
 #include <stdio.h>
@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "1.6dev"
+#define VERSION "1.6rc"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -126,8 +126,8 @@ static void
 packtraces (flag flush)
 {
   MSTrace *mst;
-  int trpackedsamples = 0;
-  int trpackedrecords = 0;
+  int64_t trpackedsamples = 0;
+  int64_t trpackedrecords = 0;
   
   mst = mstg->traces;
   while ( mst )
@@ -476,10 +476,10 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
 	  datasamplesize = ( *(cheader+76) == '4' ) ? 4 : 2;
 	  
 	  if ( verbose )
-	    fprintf (stderr, "[%s] '%s_%s' (%s): %s%s, %d %d byte samps @ %.4f Hz\n",
+	    fprintf (stderr, "[%s] '%s_%s' (%s): %s%s, %lld %d byte samps @ %.4f Hz\n",
 		     seisanfile, msr->station, component, msr->channel,
 		     timestr, (uctimeflag) ? " [UNCERTAIN]" : "",
-		     msr->samplecnt, datasamplesize, msr->samprate);
+		     (long long int)msr->samplecnt, datasamplesize, msr->samprate);
 	  
 	  expectdata = 1;
 	  expectdatalen = msr->samplecnt * datasamplesize;
@@ -527,7 +527,8 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
 	  if ( msr->samplecnt != msr->numsamples )
 	    {
 	      fprintf (stderr, "[%s] Number of samples in channel header != data section\n", seisanfile);
-	      fprintf (stderr, "  Header: %d, Data section: %d\n", msr->samplecnt, msr->numsamples);
+	      fprintf (stderr, "  Header: %lld, Data section: %lld\n",
+		       (long long int)msr->samplecnt, (long long int)msr->numsamples);
 	    }
 
 	  /* Make sure we have 32-bit integers in host byte order */
@@ -539,8 +540,8 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
 	  
 	  if ( verbose > 1 )
 	    {
-	      fprintf (stderr, "[%s] %d samps @ %.6f Hz for N: '%s', S: '%s', L: '%s', C: '%s'\n",
-		       seisanfile, msr->numsamples, msr->samprate,
+	      fprintf (stderr, "[%s] %lld samps @ %.6f Hz for N: '%s', S: '%s', L: '%s', C: '%s'\n",
+		       seisanfile, (long long int)msr->numsamples, msr->samprate,
 		       msr->network, msr->station,  msr->location, msr->channel);
 	    }
 	  
