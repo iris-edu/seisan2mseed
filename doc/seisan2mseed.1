@@ -1,4 +1,4 @@
-.TH SEISAN2MSEED 1 2005/11/25
+.TH SEISAN2MSEED 1 2013/02/22
 .SH NAME
 SeisAn to Mini-SEED converter
 
@@ -56,6 +56,12 @@ records.  The host computer must have enough memory to store all of
 the data.  By default the program will flush it's data buffers after
 each input block is read.  An output file must be specified with the
 -o option when using this option.
+
+.IP "-rfy       "
+Retain far future time stamps.  By default the converter will shift
+all data time stamps beyond the year 2050 to the year 2050 in order
+to maximize compatibility for miniSEED readers.  This option negates
+this default behavior and leaves far future dates as is.
 
 .IP "-n \fInetcode\fP"
 Specify the SEED network code to use, if not specified the network
