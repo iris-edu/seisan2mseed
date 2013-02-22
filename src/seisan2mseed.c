@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2013.045
+ * modified 2013.053
  ***************************************************************************/
 
 #include <stdio.h>
@@ -16,7 +16,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "1.6rc"
+#define VERSION "1.6"
 #define PACKAGE "seisan2mseed"
 
 struct listnode {
@@ -44,6 +44,7 @@ static int   encoding    = -1;
 static int   byteorder   = -1;
 static char  srateblkt   = 0;
 static char  bufferall   = 0;
+static char  retainfutureyear = 0;
 static char *forcenet    = 0;
 static char *forceloc    = 0;
 static char *outputfile  = 0;
@@ -427,6 +428,15 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
 	  memcpy (timestr, cheader + 9, 3);
 	  year = strtoul (timestr, NULL, 10);
 	  year += 1900;
+
+	  /* Optionally shift start times beyond the year 2051 back to the year 2050 */
+	  if ( ! retainfutureyear && year > 2050 )
+	    {
+	      if ( verbose )
+		fprintf (stderr, "[%s] Shifting start year from %ld to 2050\n", seisanfile, year);
+	      year = 2050;
+	    }
+
 	  sprintf (timestr, "%4ld", year);
 	  
 	  strcat (timestr, ",");
@@ -682,7 +692,7 @@ detectformat (FILE *ifp, flag *formatflag, flag *swapflag, char *seisanfile)
  * mkhostdata:
  *
  * Given the raw input data return a buffer of 32-bit integers in host
- * byte order.  The routine may modified the contents of the supplied
+ * byte order.  The routine may modify the contents of the supplied
  * data sample buffer.
  *
  * A buffer used for 16->32 bit conversions is statically maintained
@@ -884,6 +894,10 @@ parameter_proc (int argcount, char **argvec)
       else if (strcmp (argvec[optind], "-b") == 0)
 	{
 	  byteorder = atoi (getoptval(argcount, argvec, optind++));
+	}
+      else if (strcmp (argvec[optind], "-rfy") == 0)
+	{
+	  retainfutureyear = 1;
 	}
       else if (strcmp (argvec[optind], "-o") == 0)
 	{
@@ -1209,6 +1223,7 @@ usage (void)
 	   " -v             Be more verbose, multiple flags can be used\n"
 	   " -S             Include SEED blockette 100 for very irrational sample rates\n"
            " -B             Buffer data before packing, default packs at end of each block\n"
+	   " -rfy           Retain far future years, default is to shift years > 2050 to 2050\n"
 	   " -n netcode     Specify the SEED network code, default is blank\n"
 	   " -l loccode     Specify the SEED location code, default is blank\n"
 	   " -r bytes       Specify record length in bytes for packing, default: 4096\n"

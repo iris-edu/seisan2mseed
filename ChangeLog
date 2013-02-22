@@ -1,3 +1,9 @@
+2013.053: 1.6
+	- Update to libmseed 2.9.
+	- Add logic to shift all far future data times (year > 2050)to the
+	year 2050.
+	- Add the -rfy option to retain the far future year time stamps.
+
 2013.045: 1.6rc
 	- Update to libmseed 2.8, including many small fixes and better future
 	date support.
