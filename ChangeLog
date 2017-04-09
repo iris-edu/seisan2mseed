@@ -1,6 +1,10 @@
+2017.099:
+	- Update libmseed to 2.19.3.
+	- Update licensing to GNU GPL 3.
+
 2013.053: 1.6
 	- Update to libmseed 2.9.
-	- Add logic to shift all far future data times (year > 2050)to the
+	- Add logic to shift all far future data times (year > 2050) to the
 	year 2050.
 	- Add the -rfy option to retain the far future year time stamps.
 
