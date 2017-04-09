@@ -10,7 +10,7 @@ For usage infromation see the [seisan2mseed manual](doc/seisan2mseed.md) in the
 
 ## Downloading and building
 
-The [releases](https://github.com/iris-edu/gse2mseed/releases) area
+The [releases](https://github.com/iris-edu/seisan2mseed/releases) area
 contains release versions.
 
 In most Unix/Linux environments a simple 'make' will build the program.
