@@ -1,19 +1,14 @@
 #
 # Nmake file for seisan2mseed - Windows version
 # Use 'nmake -f Makefile.win'
-#
-# THIS HAS NEVER BEEN TESTED
-# Some modification might be required.
 
 NODEBUG=1
 
-!include <ntwin32.mak>
-
 INCS = /I..\libmseed
+OPTS = -D_CRT_SECURE_NO_WARNINGS
 LIBS = ..\libmseed\libmseed.lib
-BIN = ..\seisan2mseed.exe
 
-cflags = $(cflags) -DWIN32
+BIN = ..\seisan2mseed.exe
 
 all: $(BIN)
 
@@ -21,7 +16,7 @@ $(BIN):	seisan2mseed.obj
 	link.exe /nologo /out:$(BIN) $(LIBS) seisan2mseed.obj
 
 .c.obj:
-   $(cc) /nologo $(cflags) $(cdebug) $(cvarsmt) $(tflags) $(INCS) $<
+	$(CC) /nologo $(CFLAGS) $(INCS) $(OPTS) /c $<
 
 # Clean-up directives
 clean:
