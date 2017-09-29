@@ -77,30 +77,30 @@ main (int argc, char **argv)
 
   /* Open the output file if specified */
   if ( outputfile )
+  {
+    if ( strcmp (outputfile, "-") == 0 )
     {
-      if ( strcmp (outputfile, "-") == 0 )
-        {
-          ofp = stdout;
-        }
-      else if ( (ofp = fopen (outputfile, "wb")) == NULL )
-        {
-          fprintf (stderr, "Cannot open output file: %s (%s)\n",
-                   outputfile, strerror(errno));
-          return -1;
-        }
+      ofp = stdout;
     }
+    else if ( (ofp = fopen (outputfile, "wb")) == NULL )
+    {
+      fprintf (stderr, "Cannot open output file: %s (%s)\n",
+               outputfile, strerror(errno));
+      return -1;
+    }
+  }
 
   /* Read input SeisAn files into MSTraceGroup */
   flp = filelist;
   while ( flp != 0 )
-    {
-      if ( verbose )
-        fprintf (stderr, "Reading %s\n", flp->data);
+  {
+    if ( verbose )
+      fprintf (stderr, "Reading %s\n", flp->data);
 
-      seisan2group (flp->data, mstg);
+    seisan2group (flp->data, mstg);
 
-      flp = flp->next;
-    }
+    flp = flp->next;
+  }
 
   /* Pack any remaining, possibly all data */
   packtraces (1);
@@ -133,27 +133,27 @@ packtraces (flag flush)
 
   mst = mstg->traces;
   while ( mst )
+  {
+    if ( mst->numsamples <= 0 )
     {
-      if ( mst->numsamples <= 0 )
-        {
-          mst = mst->next;
-          continue;
-        }
-
-      trpackedrecords = mst_pack (mst, &record_handler, 0, packreclen, encoding, byteorder,
-                                  &trpackedsamples, flush, verbose-2, (MSRecord *) mst->prvtptr);
-      if ( trpackedrecords < 0 )
-        {
-          fprintf (stderr, "Error packing data\n");
-        }
-      else
-        {
-          packedrecords += trpackedrecords;
-          packedsamples += trpackedsamples;
-        }
-
       mst = mst->next;
+      continue;
     }
+
+    trpackedrecords = mst_pack (mst, &record_handler, 0, packreclen, encoding, byteorder,
+                                &trpackedsamples, flush, verbose-2, (MSRecord *) mst->prvtptr);
+    if ( trpackedrecords < 0 )
+    {
+      fprintf (stderr, "Error packing data\n");
+    }
+    else
+    {
+      packedrecords += trpackedrecords;
+      packedsamples += trpackedsamples;
+    }
+
+    mst = mst->next;
+  }
 }  /* End of packtraces() */
 
 
@@ -213,11 +213,11 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
 
   /* Open input file */
   if ( (ifp = fopen (seisanfile, "rb")) == NULL )
-    {
-      fprintf (stderr, "Cannot open input file: %s (%s)\n",
-               seisanfile, strerror(errno));
-      return -1;
-    }
+  {
+    fprintf (stderr, "Cannot open input file: %s (%s)\n",
+             seisanfile, strerror(errno));
+    return -1;
+  }
 
   /* Stat file to get size */
   if ( fstat (fileno(ifp), &sbuf) )
@@ -229,429 +229,429 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
 
   /* Detect format and byte order */
   if ( detectformat (ifp, &formatflag, &swapflag, seisanfile) )
-    {
-      if ( ferror(ifp) )
-        fprintf (stderr, "Error reading file %s: %s\n",
-                 seisanfile, strerror(errno));
-      else
-        fprintf (stderr, "Error detecting data format of %s\n", seisanfile);
+  {
+    if ( ferror(ifp) )
+      fprintf (stderr, "Error reading file %s: %s\n",
+               seisanfile, strerror(errno));
+    else
+      fprintf (stderr, "Error detecting data format of %s\n", seisanfile);
 
-      return -1;
-    }
+    return -1;
+  }
 
   /* Read the signature character for formatflag == 1, it's not needed. */
   if ( formatflag == 1 )
     if ( fread (&reclen1, 1, 1, ifp) < 1 )
+    {
+      if ( ferror(ifp) )
+        fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
+
+      return -1;
+    }
+
+  /* Report format and byte order detection results */
+  if ( verbose > 1 )
+  {
+    if ( formatflag == 1 )
+      fprintf (stderr, "Detected PC <= 6.0 format for %s\n", seisanfile);
+    else if ( formatflag == 4 )
+      fprintf (stderr, "Detected Sun/Linux and PC >= 7.0 format for %s\n", seisanfile);
+    else
+    {
+      fprintf (stderr, "Unknown format for %s\n", seisanfile);
+      return -1;
+    }
+
+    if ( swapflag == 0 )
+      fprintf (stderr, "Byte swapping not needed for %s\n", seisanfile);
+    else
+      fprintf (stderr, "Byte swapping needed for %s\n", seisanfile);
+  }
+
+  /* Open output file if needed */
+  if ( ! ofp )
+  {
+    char mseedoutputfile[1024];
+
+    /* If a "standard" name change the S to an M otherwise add _MSEED to the end */
+    if ( seisanfile[4] == '-' && seisanfile[7] == '-' && seisanfile[10] == '-' &&
+         seisanfile[15] == '-' && seisanfile[18] == 'S' && seisanfile[19] == '.' )
+    {
+      strncpy (mseedoutputfile, seisanfile, sizeof(mseedoutputfile));
+      mseedoutputfile[18] = 'M';
+    }
+    else
+    {
+      snprintf (mseedoutputfile, sizeof(mseedoutputfile), "%s_MSEED", seisanfile);
+    }
+
+    if ( (ofp = fopen (mseedoutputfile, "wb")) == NULL )
+    {
+      fprintf (stderr, "Cannot open output file: %s (%s)\n",
+               mseedoutputfile, strerror(errno));
+      return -1;
+    }
+  }
+
+  if ( ! (msr = msr_init(msr)) )
+  {
+    fprintf (stderr, "Cannot initialize MSRecord strcture\n");
+    return -1;
+  }
+
+  /* Read a record at a time */
+  for (;;)
+  {
+    /* Get current file position */
+    filepos = lmp_ftello (ifp);
+
+    /* Read next record length */
+    if ( formatflag == 1 )
+    {
+      if ( (readlen = fread (&reclen1, 1, 1, ifp)) < 1 )
+      {
+        if ( ferror(ifp) )
+          fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
+        break;
+      }
+      reclen = reclen1;
+    }
+    if ( formatflag == 4 )
+    {
+      if ( (readlen = fread (&reclen4, 4, 1, ifp)) < 1 )
+      {
+        if ( ferror(ifp) )
+          fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
+        break;
+      }
+
+      if ( swapflag ) ms_gswap4 ( &reclen4 );
+      reclen = reclen4;
+    }
+
+    /* Check if record is longer then expected */
+    if (expectdatalen && (reclen + datalen) > expectdatalen)
+    {
+      /* Check for the observed corrupt data case where the record length is one more
+         than expected and at the end of the file. */
+      if (expectdatalen == (reclen + datalen - 1) &&
+          sbuf.st_size == (filepos + reclen + 1))
+      {
+        fprintf (stderr, "Warning, bad record length (%d) detected at end of file, setting to %d\n",
+                 reclen, reclen - 1);
+        reclen -= 1;
+      }
+      else
+      {
+        fprintf (stderr, "Error, record length (%d) is longer than expected (%d), ignoring rest of file\n",
+                 reclen, expectdatalen - datalen);
+        break;
+      }
+    }
+
+    if ( verbose > 2 )
+      fprintf (stderr, "Reading next record of length %d bytes from offset %lld (0x%llx) to %lld\n",
+               reclen, (long long) filepos, (long long) filepos,
+               (long long) filepos+reclen);
+
+    /* Make sure enough memory is available */
+    if ( reclen > recordbufsize )
+    {
+      if ( (record = realloc (record, reclen)) == NULL )
+      {
+        fprintf (stderr, "Error allocating memory for record\n");
+        break;
+      }
+      else
+        recordbufsize = reclen;
+    }
+
+    /* Read the record */
+    if ( (readlen = fread (record, 1, reclen, ifp)) < reclen )
+    {
+      if ( ferror(ifp) )
+        fprintf (stderr, "Error reading file %s\n", seisanfile);
+      else if ( readlen < reclen )
+        fprintf (stderr, "Short read, only read %d of %d bytes.\n", (int)readlen, reclen);
+
+      break;
+    }
+
+    /* Read record length mirror at the end of the record */
+    if ( formatflag == 1 )
+    {
+      if ( (readlen = fread (&reclenmirror1, 1, 1, ifp)) < 1 )
       {
         if ( ferror(ifp) )
           fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
 
-        return -1;
+        if ( feof(ifp) )
+          fprintf (stderr, "Error reading file %s: REACHED END, return: %zu\n", seisanfile, readlen);
+
+        break;
       }
 
-  /* Report format and byte order detection results */
-  if ( verbose > 1 )
-    {
-      if ( formatflag == 1 )
-        fprintf (stderr, "Detected PC <= 6.0 format for %s\n", seisanfile);
-      else if ( formatflag == 4 )
-        fprintf (stderr, "Detected Sun/Linux and PC >= 7.0 format for %s\n", seisanfile);
-      else
-        {
-          fprintf (stderr, "Unknown format for %s\n", seisanfile);
-          return -1;
-        }
-
-      if ( swapflag == 0 )
-        fprintf (stderr, "Byte swapping not needed for %s\n", seisanfile);
-      else
-        fprintf (stderr, "Byte swapping needed for %s\n", seisanfile);
-    }
-
-  /* Open output file if needed */
-  if ( ! ofp )
-    {
-      char mseedoutputfile[1024];
-
-      /* If a "standard" name change the S to an M otherwise add _MSEED to the end */
-      if ( seisanfile[4] == '-' && seisanfile[7] == '-' && seisanfile[10] == '-' &&
-           seisanfile[15] == '-' && seisanfile[18] == 'S' && seisanfile[19] == '.' )
-        {
-          strncpy (mseedoutputfile, seisanfile, sizeof(mseedoutputfile));
-          mseedoutputfile[18] = 'M';
-        }
-      else
-        {
-          snprintf (mseedoutputfile, sizeof(mseedoutputfile), "%s_MSEED", seisanfile);
-        }
-
-      if ( (ofp = fopen (mseedoutputfile, "wb")) == NULL )
-        {
-          fprintf (stderr, "Cannot open output file: %s (%s)\n",
-                   mseedoutputfile, strerror(errno));
-          return -1;
-        }
-    }
-
-  if ( ! (msr = msr_init(msr)) )
-    {
-      fprintf (stderr, "Cannot initialize MSRecord strcture\n");
-      return -1;
-    }
-
-  /* Read a record at a time */
-  for (;;)
-    {
-      /* Get current file position */
-      filepos = lmp_ftello (ifp);
-
-      /* Read next record length */
-      if ( formatflag == 1 )
-        {
-          if ( (readlen = fread (&reclen1, 1, 1, ifp)) < 1 )
-            {
-              if ( ferror(ifp) )
-                fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
-              break;
-            }
-          reclen = reclen1;
-        }
-      if ( formatflag == 4 )
-        {
-          if ( (readlen = fread (&reclen4, 4, 1, ifp)) < 1 )
-            {
-              if ( ferror(ifp) )
-                fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
-              break;
-            }
-
-          if ( swapflag ) ms_gswap4 ( &reclen4 );
-          reclen = reclen4;
-        }
-
-      /* Check if record is longer then expected */
-      if (expectdatalen && (reclen + datalen) > expectdatalen)
+      if ( reclen1 != reclenmirror1 )
       {
-        /* Check for the observed corrupt data case where the record length is one more
-           than expected and at the end of the file. */
-        if (expectdatalen == (reclen + datalen - 1) &&
-            sbuf.st_size == (filepos + reclen + 1))
-        {
-          fprintf (stderr, "Warning, bad record length (%d) detected at end of file, setting to %d\n",
-                   reclen, reclen - 1);
-          reclen -= 1;
-        }
-        else
-        {
-          fprintf (stderr, "Error, record length (%d) is longer than expected (%d), ignoring rest of file\n",
-                   reclen, expectdatalen - datalen);
-          break;
-        }
+        fprintf (stderr, "At byte offset %lld in %s:\n", (long long) filepos, seisanfile);
+        fprintf (stderr, "  Next and previous record length values do not match: %d != %d\n",
+                 reclen1, reclenmirror1);
+        break;
+      }
+    }
+    if ( formatflag == 4 )
+    {
+      if ( (readlen = fread (&reclenmirror4, 4, 1, ifp)) < 1 )
+      {
+        if ( ferror(ifp) )
+          fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
+        break;
+      }
+      if ( swapflag ) ms_gswap4 ( &reclenmirror4 );
+      if ( reclen4 != reclenmirror4 )
+      {
+        fprintf (stderr, "At byte offset %lld in %s:\n", (long long) filepos, seisanfile);
+        fprintf (stderr, "  Next and previous record length values do not match: %d != %d\n",
+                 reclen4, reclenmirror4);
+        break;
+      }
+    }
+
+    /* Expecting a channel header:
+     * Either the channel header is starting (first char is not space)
+     * Or we are already reading it (cheaderlen != 0) */
+    if ( expectheader && (cheaderlen != 0 || *record != ' ') )
+    {
+      /* Copy record into channel header buffer */
+      if ( (reclen + cheaderlen) <= 1040 )
+      {
+        memcpy (cheader + cheaderlen, record, reclen);
+        cheaderlen += reclen;
+      }
+      else
+      {
+        fprintf (stderr, "Record is too long for the expected channel header!\n");
+        fprintf (stderr, "  cheaderlen: %d, reclen: %d (channel header should be 1040 bytes)\n",
+                 cheaderlen, reclen);
+        break;
       }
 
-      if ( verbose > 2 )
-        fprintf (stderr, "Reading next record of length %d bytes from offset %lld (0x%llx) to %lld\n",
-                 reclen, (long long) filepos, (long long) filepos,
-                 (long long) filepos+reclen);
+      /* Continue reading records if channel header is not filled */
+      if ( cheaderlen < 1040 )
+        continue;
 
-      /* Make sure enough memory is available */
-      if ( reclen > recordbufsize )
+      /* Otherwise parse the header */
+      ms_strncpclean (msr->network, forcenet, 2);
+      ms_strncpclean (msr->station, cheader, 5);
+
+      /* Map component to SEED channel and location */
+      memset (component, 0, sizeof(component));
+      memcpy (component, cheader + 5, 4);
+
+      translatechan (component, msr->channel, msr->location);
+
+      if ( verbose > 1 )
+      {
+        fprintf (stderr, "[%s] SeisAn channel: '%s', SEED channel: '%s'\n",
+                 seisanfile, component, msr->channel);
+      }
+
+      if ( forceloc )
+        ms_strncpclean (msr->location, forceloc, 2);
+
+      /* Construct time string */
+      memset (timestr, 0, sizeof(timestr));
+      memcpy (timestr, cheader + 9, 3);
+      year = strtoul (timestr, NULL, 10);
+      year += 1900;
+
+      /* Optionally shift start times beyond the year 2051 back to the year 2050 */
+      if ( ! retainfutureyear && year > 2050 )
+      {
+        if ( verbose )
+          fprintf (stderr, "[%s] Shifting start year from %ld to 2050\n", seisanfile, year);
+        year = 2050;
+      }
+
+      sprintf (timestr, "%4ld", year);
+
+      strcat (timestr, ",");
+      strncat (timestr, cheader + 13, 3);
+      strcat (timestr, ",");
+      strncat (timestr, cheader + 23, 2);
+      strcat (timestr, ":");
+      strncat (timestr, cheader + 26, 2);
+      strcat (timestr, ":");
+      strncat (timestr, cheader + 29, 6);
+
+      /* Remove spaces */
+      cat = mouse = timestr;
+      while ( *mouse )
+        if ( *mouse++ != ' ' )
+          *cat++ = *(mouse-1);
+      *cat = '\0';
+
+      msr->starttime = ms_seedtimestr2hptime (timestr);
+
+      /* Parse sample rate */
+      memset (ratestr, 0, sizeof(ratestr));
+      memcpy (ratestr, cheader + 36, 7);
+      msr->samprate = strtod (ratestr, NULL);
+
+      /* Parse sample count */
+      memset (sampstr, 0, sizeof(sampstr));
+      memcpy (sampstr, cheader + 43, 7);
+      msr->samplecnt = strtoul (sampstr, NULL, 10);
+
+      /* Detect uncertain time */
+      uctimeflag = ( *(cheader+28) == 'E' ) ? 1 : 0;
+
+      /* Detect gain */
+      gainflag = ( *(cheader+75) == 'G' ) ? 1 : 0;
+      if ( gainflag )
+      {
+        memset (gainstr, 0, sizeof(gainstr));
+        memcpy (gainstr, cheader + 147, 12);
+        gain = strtod (gainstr, NULL);
+
+        fprintf (stderr, "Gain of %f detected\n", gain);
+        fprintf (stderr, "Gain NOT applied, no support for that yet!\n");
+      }
+
+      /* Determine data sample size */
+      datasamplesize = ( *(cheader+76) == '4' ) ? 4 : 2;
+
+      if ( verbose )
+        fprintf (stderr, "[%s] '%s_%s' (%s): %s%s, %lld %d byte samps @ %.4f Hz\n",
+                 seisanfile, msr->station, component, msr->channel,
+                 timestr, (uctimeflag) ? " [UNCERTAIN]" : "",
+                 (long long int)msr->samplecnt, datasamplesize, msr->samprate);
+
+      expectdata = 1;
+      expectdatalen = msr->samplecnt * datasamplesize;
+      expectheader = 0;
+      cheaderlen = 0;
+      continue;
+    }
+
+    /* Expecting data */
+    if ( expectdata )
+    {
+      /* Copy record into data buffer */
+      if ( (reclen + datalen) <= expectdatalen )
+      {
+        /* Make sure enough memory is available */
+        if ( (reclen + datalen) > maxdatalen )
         {
-          if ( (record = realloc (record, reclen)) == NULL )
-            {
-              fprintf (stderr, "Error allocating memory for record\n");
-              break;
-            }
-          else
-            recordbufsize = reclen;
-        }
-
-      /* Read the record */
-      if ( (readlen = fread (record, 1, reclen, ifp)) < reclen )
-        {
-          if ( ferror(ifp) )
-            fprintf (stderr, "Error reading file %s\n", seisanfile);
-          else if ( readlen < reclen )
-            fprintf (stderr, "Short read, only read %d of %d bytes.\n", (int)readlen, reclen);
-
-          break;
-        }
-
-      /* Read record length mirror at the end of the record */
-      if ( formatflag == 1 )
-        {
-          if ( (readlen = fread (&reclenmirror1, 1, 1, ifp)) < 1 )
-            {
-              if ( ferror(ifp) )
-                fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
-
-              if ( feof(ifp) )
-                fprintf (stderr, "Error reading file %s: REACHED END, return: %zu\n", seisanfile, readlen);
-
-              break;
-            }
-
-          if ( reclen1 != reclenmirror1 )
+          if ( (data = realloc (data, (reclen+datalen))) == NULL )
           {
-            fprintf (stderr, "At byte offset %lld in %s:\n", (long long) filepos, seisanfile);
-            fprintf (stderr, "  Next and previous record length values do not match: %d != %d\n",
-                     reclen1, reclenmirror1);
+            fprintf (stderr, "Error allocating memory for record\n");
             break;
           }
-        }
-      if ( formatflag == 4 )
-        {
-          if ( (readlen = fread (&reclenmirror4, 4, 1, ifp)) < 1 )
-            {
-              if ( ferror(ifp) )
-                fprintf (stderr, "Error reading file %s: %s\n", seisanfile, strerror(errno));
-              break;
-            }
-          if ( swapflag ) ms_gswap4 ( &reclenmirror4 );
-          if ( reclen4 != reclenmirror4 )
-            {
-              fprintf (stderr, "At byte offset %lld in %s:\n", (long long) filepos, seisanfile);
-              fprintf (stderr, "  Next and previous record length values do not match: %d != %d\n",
-                       reclen4, reclenmirror4);
-              break;
-            }
-        }
-
-      /* Expecting a channel header:
-       * Either the channel header is starting (first char is not space)
-       * Or we are already reading it (cheaderlen != 0) */
-      if ( expectheader && (cheaderlen != 0 || *record != ' ') )
-        {
-          /* Copy record into channel header buffer */
-          if ( (reclen + cheaderlen) <= 1040 )
-            {
-              memcpy (cheader + cheaderlen, record, reclen);
-              cheaderlen += reclen;
-            }
           else
-            {
-              fprintf (stderr, "Record is too long for the expected channel header!\n");
-              fprintf (stderr, "  cheaderlen: %d, reclen: %d (channel header should be 1040 bytes)\n",
-                       cheaderlen, reclen);
-              break;
-            }
-
-          /* Continue reading records if channel header is not filled */
-          if ( cheaderlen < 1040 )
-            continue;
-
-          /* Otherwise parse the header */
-          ms_strncpclean (msr->network, forcenet, 2);
-          ms_strncpclean (msr->station, cheader, 5);
-
-          /* Map component to SEED channel and location */
-          memset (component, 0, sizeof(component));
-          memcpy (component, cheader + 5, 4);
-
-          translatechan (component, msr->channel, msr->location);
-
-          if ( verbose > 1 )
-            {
-              fprintf (stderr, "[%s] SeisAn channel: '%s', SEED channel: '%s'\n",
-                       seisanfile, component, msr->channel);
-            }
-
-          if ( forceloc )
-            ms_strncpclean (msr->location, forceloc, 2);
-
-          /* Construct time string */
-          memset (timestr, 0, sizeof(timestr));
-          memcpy (timestr, cheader + 9, 3);
-          year = strtoul (timestr, NULL, 10);
-          year += 1900;
-
-          /* Optionally shift start times beyond the year 2051 back to the year 2050 */
-          if ( ! retainfutureyear && year > 2050 )
-            {
-              if ( verbose )
-                fprintf (stderr, "[%s] Shifting start year from %ld to 2050\n", seisanfile, year);
-              year = 2050;
-            }
-
-          sprintf (timestr, "%4ld", year);
-
-          strcat (timestr, ",");
-          strncat (timestr, cheader + 13, 3);
-          strcat (timestr, ",");
-          strncat (timestr, cheader + 23, 2);
-          strcat (timestr, ":");
-          strncat (timestr, cheader + 26, 2);
-          strcat (timestr, ":");
-          strncat (timestr, cheader + 29, 6);
-
-          /* Remove spaces */
-          cat = mouse = timestr;
-          while ( *mouse )
-            if ( *mouse++ != ' ' )
-              *cat++ = *(mouse-1);
-          *cat = '\0';
-
-          msr->starttime = ms_seedtimestr2hptime (timestr);
-
-          /* Parse sample rate */
-          memset (ratestr, 0, sizeof(ratestr));
-          memcpy (ratestr, cheader + 36, 7);
-          msr->samprate = strtod (ratestr, NULL);
-
-          /* Parse sample count */
-          memset (sampstr, 0, sizeof(sampstr));
-          memcpy (sampstr, cheader + 43, 7);
-          msr->samplecnt = strtoul (sampstr, NULL, 10);
-
-          /* Detect uncertain time */
-          uctimeflag = ( *(cheader+28) == 'E' ) ? 1 : 0;
-
-          /* Detect gain */
-          gainflag = ( *(cheader+75) == 'G' ) ? 1 : 0;
-          if ( gainflag )
-            {
-              memset (gainstr, 0, sizeof(gainstr));
-              memcpy (gainstr, cheader + 147, 12);
-              gain = strtod (gainstr, NULL);
-
-              fprintf (stderr, "Gain of %f detected\n", gain);
-              fprintf (stderr, "Gain NOT applied, no support for that yet!\n");
-            }
-
-          /* Determine data sample size */
-          datasamplesize = ( *(cheader+76) == '4' ) ? 4 : 2;
-
-          if ( verbose )
-            fprintf (stderr, "[%s] '%s_%s' (%s): %s%s, %lld %d byte samps @ %.4f Hz\n",
-                     seisanfile, msr->station, component, msr->channel,
-                     timestr, (uctimeflag) ? " [UNCERTAIN]" : "",
-                     (long long int)msr->samplecnt, datasamplesize, msr->samprate);
-
-          expectdata = 1;
-          expectdatalen = msr->samplecnt * datasamplesize;
-          expectheader = 0;
-          cheaderlen = 0;
-          continue;
+            maxdatalen = reclen + datalen;
         }
 
-      /* Expecting data */
-      if ( expectdata )
-        {
-          /* Copy record into data buffer */
-          if ( (reclen + datalen) <= expectdatalen )
-            {
-              /* Make sure enough memory is available */
-              if ( (reclen + datalen) > maxdatalen )
-                {
-                  if ( (data = realloc (data, (reclen+datalen))) == NULL )
-                    {
-                      fprintf (stderr, "Error allocating memory for record\n");
-                      break;
-                    }
-                  else
-                    maxdatalen = reclen + datalen;
-                }
+        memcpy (data + datalen, record, reclen);
+        datalen += reclen;
+      }
+      else
+      {
+        fprintf (stderr, "Record is too long for the expected data!\n");
+        fprintf (stderr, " datalen: %d, reclen: %d, expectdatalen: %d\n",
+                 datalen, reclen, expectdatalen);
+        break;
+      }
 
-              memcpy (data + datalen, record, reclen);
-              datalen += reclen;
-            }
-          else
-            {
-              fprintf (stderr, "Record is too long for the expected data!\n");
-              fprintf (stderr, " datalen: %d, reclen: %d, expectdatalen: %d\n",
-                       datalen, reclen, expectdatalen);
-              break;
-            }
+      /* Continue reading records if enough data has not been read */
+      if ( datalen < expectdatalen )
+        continue;
 
-          /* Continue reading records if enough data has not been read */
-          if ( datalen < expectdatalen )
-            continue;
+      /* Number of samples implied by data record length */
+      msr->numsamples = datalen / datasamplesize;
 
-          /* Number of samples implied by data record length */
-          msr->numsamples = datalen / datasamplesize;
+      if ( msr->samplecnt != msr->numsamples )
+      {
+        fprintf (stderr, "[%s] Number of samples in channel header != data section\n", seisanfile);
+        fprintf (stderr, "  Header: %lld, Data section: %lld\n",
+                 (long long int)msr->samplecnt, (long long int)msr->numsamples);
+      }
 
-          if ( msr->samplecnt != msr->numsamples )
-            {
-              fprintf (stderr, "[%s] Number of samples in channel header != data section\n", seisanfile);
-              fprintf (stderr, "  Header: %lld, Data section: %lld\n",
-                       (long long int)msr->samplecnt, (long long int)msr->numsamples);
-            }
+      /* Make sure we have 32-bit integers in host byte order */
+      if ( ! (msr->datasamples = mkhostdata (data, datalen, datasamplesize, swapflag)) )
+        break;
 
-          /* Make sure we have 32-bit integers in host byte order */
-          if ( ! (msr->datasamples = mkhostdata (data, datalen, datasamplesize, swapflag)) )
-            break;
+      /* Add data to MSTraceGroup */
+      msr->sampletype = 'i';
 
-          /* Add data to MSTraceGroup */
-          msr->sampletype = 'i';
+      if ( verbose > 1 )
+      {
+        fprintf (stderr, "[%s] %lld samps @ %.6f Hz for N: '%s', S: '%s', L: '%s', C: '%s'\n",
+                 seisanfile, (long long int)msr->numsamples, msr->samprate,
+                 msr->network, msr->station,  msr->location, msr->channel);
+      }
 
-          if ( verbose > 1 )
-            {
-              fprintf (stderr, "[%s] %lld samps @ %.6f Hz for N: '%s', S: '%s', L: '%s', C: '%s'\n",
-                       seisanfile, (long long int)msr->numsamples, msr->samprate,
-                       msr->network, msr->station,  msr->location, msr->channel);
-            }
+      if ( ! (mst = mst_addmsrtogroup (mstg, msr, 0, -1.0, -1.0)) )
+      {
+        fprintf (stderr, "[%s] Error adding samples to MSTraceGroup\n", seisanfile);
+      }
 
-          if ( ! (mst = mst_addmsrtogroup (mstg, msr, 0, -1.0, -1.0)) )
-            {
-              fprintf (stderr, "[%s] Error adding samples to MSTraceGroup\n", seisanfile);
-            }
+      /* Create an MSRecord template for the MSTrace by copying the current holder */
+      if ( ! mst->prvtptr )
+      {
+        mst->prvtptr = malloc (sizeof(MSRecord));
+      }
 
-          /* Create an MSRecord template for the MSTrace by copying the current holder */
-          if ( ! mst->prvtptr )
-            {
-              mst->prvtptr = malloc (sizeof(MSRecord));
-            }
+      memcpy (mst->prvtptr, msr, sizeof(MSRecord));
 
-          memcpy (mst->prvtptr, msr, sizeof(MSRecord));
+      /* If a blockette 100 is requested add it */
+      if ( srateblkt )
+      {
+        memset (&Blkt100, 0, sizeof(struct blkt_100_s));
+        Blkt100.samprate = (float) msr->samprate;
+        msr_addblockette ((MSRecord *) mst->prvtptr, (char *) &Blkt100,
+                          sizeof(struct blkt_100_s), 100, 0);
+      }
 
-          /* If a blockette 100 is requested add it */
-          if ( srateblkt )
-            {
-              memset (&Blkt100, 0, sizeof(struct blkt_100_s));
-              Blkt100.samprate = (float) msr->samprate;
-              msr_addblockette ((MSRecord *) mst->prvtptr, (char *) &Blkt100,
-                                sizeof(struct blkt_100_s), 100, 0);
-            }
+      /* Create a FSDH for the template */
+      if ( ! ((MSRecord *)mst->prvtptr)->fsdh )
+      {
+        ((MSRecord *)mst->prvtptr)->fsdh = malloc (sizeof(struct fsdh_s));
+        memset (((MSRecord *)mst->prvtptr)->fsdh, 0, sizeof(struct fsdh_s));
+      }
 
-          /* Create a FSDH for the template */
-          if ( ! ((MSRecord *)mst->prvtptr)->fsdh )
-            {
-              ((MSRecord *)mst->prvtptr)->fsdh = malloc (sizeof(struct fsdh_s));
-              memset (((MSRecord *)mst->prvtptr)->fsdh, 0, sizeof(struct fsdh_s));
-            }
+      /* Set bit 7 (time tag questionable) in the data quality flags appropriately */
+      if ( uctimeflag )
+        ((MSRecord *)mst->prvtptr)->fsdh->dq_flags |= 0x80;
+      else
+        ((MSRecord *)mst->prvtptr)->fsdh->dq_flags &= ~(0x80);
 
-          /* Set bit 7 (time tag questionable) in the data quality flags appropriately */
-          if ( uctimeflag )
-            ((MSRecord *)mst->prvtptr)->fsdh->dq_flags |= 0x80;
-          else
-            ((MSRecord *)mst->prvtptr)->fsdh->dq_flags &= ~(0x80);
+      /* Unless buffering all files in memory pack any MSTraces now */
+      if ( ! bufferall )
+      {
+        packtraces (1);
+        packedtraces += mstg->numtraces;
+        mst_initgroup (mstg);
+      }
 
-          /* Unless buffering all files in memory pack any MSTraces now */
-          if ( ! bufferall )
-            {
-              packtraces (1);
-              packedtraces += mstg->numtraces;
-              mst_initgroup (mstg);
-            }
+      /* Cleanup and reset state */
+      msr->datasamples = 0;
+      msr = msr_init (msr);
 
-          /* Cleanup and reset state */
-          msr->datasamples = 0;
-          msr = msr_init (msr);
-
-          expectheader = 1;
-          expectdata = 0;
-          datalen = 0;
-          continue;
-        }
+      expectheader = 1;
+      expectdata = 0;
+      datalen = 0;
+      continue;
     }
+  }
 
   fclose (ifp);
 
   if ( ofp  && ! outputfile )
-    {
-      fclose (ofp);
-      ofp = 0;
-    }
+  {
+    fclose (ofp);
+    ofp = 0;
+  }
 
   if ( data )
     free (data);
@@ -680,9 +680,9 @@ detectformat (FILE *ifp, flag *formatflag, flag *swapflag, char *seisanfile)
 
   /* Read the first four bytes into ident */
   if ( fread (&ident, 4, 1, ifp) < 1 )
-    {
-      return -1;
-    }
+  {
+    return -1;
+  }
 
   /* Rewind the file position pointer to the beginning */
   rewind (ifp);
@@ -692,33 +692,33 @@ detectformat (FILE *ifp, flag *formatflag, flag *swapflag, char *seisanfile)
    * order which indicates the Sun/Linux and later PC versions
    * format. */
   if ( *(char*)&ident == 'K' )
-    {
-      *formatflag = 1;
+  {
+    *formatflag = 1;
 
-      /* The PC <= 6.0 format should always be little-endian data */
-      *swapflag = (ms_bigendianhost()) ? 1 : 0;
+    /* The PC <= 6.0 format should always be little-endian data */
+    *swapflag = (ms_bigendianhost()) ? 1 : 0;
 
-      return 0;
-    }
+    return 0;
+  }
 
   /* Test if the ident is 80 */
   if ( ident == 80 )
-    {
-      *formatflag = 4;
-      *swapflag = 0;
+  {
+    *formatflag = 4;
+    *swapflag = 0;
 
-      return 0;
-    }
+    return 0;
+  }
 
   /* Swap and test if the ident is 80 */
   ms_gswap4 ( &ident );
   if ( ident == 80 )
-    {
-      *formatflag = 4;
-      *swapflag = 1;
+  {
+    *formatflag = 4;
+    *swapflag = 1;
 
-      return 0;
-    }
+    return 0;
+  }
 
   return -1;
 }  /* End of detectformat() */
@@ -749,65 +749,65 @@ mkhostdata (char *data, int datalen, int datasamplesize, flag swapflag)
   int numsamples;
 
   if ( ! data )
-    {
-      if ( samplebuffer )
-        free (samplebuffer);
-      samplebuffer = 0;
-      maxsamplebufferlen = 0;
+  {
+    if ( samplebuffer )
+      free (samplebuffer);
+    samplebuffer = 0;
+    maxsamplebufferlen = 0;
 
-      return 0;
-    }
+    return 0;
+  }
 
   if ( datasamplesize == 2 )
+  {
+    if ( (datalen * 2) > maxsamplebufferlen )
     {
-      if ( (datalen * 2) > maxsamplebufferlen )
-        {
-          if ( (samplebuffer = realloc (samplebuffer, (datalen*2))) == NULL )
-            {
-              fprintf (stderr, "Error allocating memory for sample buffer\n");
-              return 0;
-            }
-          else
-            maxsamplebufferlen = datalen * 2;
-        }
+      if ( (samplebuffer = realloc (samplebuffer, (datalen*2))) == NULL )
+      {
+        fprintf (stderr, "Error allocating memory for sample buffer\n");
+        return 0;
+      }
+      else
+        maxsamplebufferlen = datalen * 2;
+    }
 
-      sampleptr2 = (int16_t *) data;
-      sampleptr4 = samplebuffer;
+    sampleptr2 = (int16_t *) data;
+    sampleptr4 = samplebuffer;
+    numsamples = datalen / datasamplesize;
+
+    /* Convert to 32-bit and swap data samples if needed */
+    while (numsamples--)
+    {
+      if ( swapflag )
+        ms_gswap2a (sampleptr2);
+
+      *(sampleptr4++) = *(sampleptr2++);
+    }
+
+    hostdata = samplebuffer;
+  }
+  else if ( datasamplesize == 4 )
+  {
+    /* Swap data samples if needed */
+    if ( swapflag )
+    {
+      sampleptr4 = (int32_t *) data;
       numsamples = datalen / datasamplesize;
 
-      /* Convert to 32-bit and swap data samples if needed */
       while (numsamples--)
-        {
-          if ( swapflag )
-            ms_gswap2a (sampleptr2);
-
-          *(sampleptr4++) = *(sampleptr2++);
-        }
-
-      hostdata = samplebuffer;
+        ms_gswap4a (sampleptr4++);
     }
-  else if ( datasamplesize == 4 )
-    {
-      /* Swap data samples if needed */
-      if ( swapflag )
-        {
-          sampleptr4 = (int32_t *) data;
-          numsamples = datalen / datasamplesize;
 
-          while (numsamples--)
-            ms_gswap4a (sampleptr4++);
-        }
+    if ( verbose > 1 && encoding == 1 )
+      fprintf (stderr, "WARNING: attempting to pack 32-bit integers into 16-bit encoding\n");
 
-      if ( verbose > 1 && encoding == 1 )
-        fprintf (stderr, "WARNING: attempting to pack 32-bit integers into 16-bit encoding\n");
-
-      hostdata = (int32_t *) data;
-    }
+    hostdata = (int32_t *) data;
+  }
   else
-    {
-      fprintf (stderr, "Error, unknown data sample size: %d\n", datasamplesize);
-      return 0;
-    }
+  {
+    fprintf (stderr, "Error, unknown data sample size: %d\n", datasamplesize);
+    return 0;
+  }
 
   return hostdata;
 }  /* End of mkhostdata() */
@@ -846,15 +846,15 @@ translatechan (char *component, char *channel, char *location)
   /* Check user defined translations */
   clp = chanlist;
   while ( clp != 0 )
+  {
+    if ( ! strcmp (component, clp->key) )
     {
-      if ( ! strcmp (component, clp->key) )
-        {
-          strncpy (channel, clp->data, 6);
-          return 0;
-        }
-
-      clp = clp->next;
+      strncpy (channel, clp->data, 6);
+      return 0;
     }
+
+    clp = clp->next;
+  }
 
   /* Default translation, described above */
 
@@ -888,88 +888,88 @@ parameter_proc (int argcount, char **argvec)
 
   /* Process all command line arguments */
   for (optind = 1; optind < argcount; optind++)
+  {
+    if (strcmp (argvec[optind], "-V") == 0)
     {
-      if (strcmp (argvec[optind], "-V") == 0)
-        {
-          fprintf (stderr, "%s version: %s\n", PACKAGE, VERSION);
-          exit (0);
-        }
-      else if (strcmp (argvec[optind], "-h") == 0)
-        {
-          usage();
-          exit (0);
-        }
-      else if (strncmp (argvec[optind], "-v", 2) == 0)
-        {
-          verbose += strspn (&argvec[optind][1], "v");
-        }
-      else if (strcmp (argvec[optind], "-S") == 0)
-        {
-          srateblkt = 1;
-        }
-      else if (strcmp (argvec[optind], "-B") == 0)
-        {
-          bufferall = 1;
-        }
-      else if (strcmp (argvec[optind], "-n") == 0)
-        {
-          forcenet = getoptval(argcount, argvec, optind++);
-        }
-      else if (strcmp (argvec[optind], "-l") == 0)
-        {
-          forceloc = getoptval(argcount, argvec, optind++);
-        }
-      else if (strcmp (argvec[optind], "-r") == 0)
-        {
-          packreclen = atoi (getoptval(argcount, argvec, optind++));
-        }
-      else if (strcmp (argvec[optind], "-e") == 0)
-        {
-          encoding = atoi (getoptval(argcount, argvec, optind++));
-        }
-      else if (strcmp (argvec[optind], "-b") == 0)
-        {
-          byteorder = atoi (getoptval(argcount, argvec, optind++));
-        }
-      else if (strcmp (argvec[optind], "-rfy") == 0)
-        {
-          retainfutureyear = 1;
-        }
-      else if (strcmp (argvec[optind], "-o") == 0)
-        {
-          outputfile = getoptval(argcount, argvec, optind++);
-        }
-      else if (strcmp (argvec[optind], "-T") == 0)
-        {
-          addmapnode (&chanlist, getoptval(argcount, argvec, optind++));
-        }
-      else if (strncmp (argvec[optind], "-", 1) == 0 &&
-               strlen (argvec[optind]) > 1 )
-        {
-          fprintf(stderr, "Unknown option: %s\n", argvec[optind]);
-          exit (1);
-        }
-      else
-        {
-          addnode (&filelist, NULL, argvec[optind]);
-        }
+      fprintf (stderr, "%s version: %s\n", PACKAGE, VERSION);
+      exit (0);
     }
+    else if (strcmp (argvec[optind], "-h") == 0)
+    {
+      usage();
+      exit (0);
+    }
+    else if (strncmp (argvec[optind], "-v", 2) == 0)
+    {
+      verbose += strspn (&argvec[optind][1], "v");
+    }
+    else if (strcmp (argvec[optind], "-S") == 0)
+    {
+      srateblkt = 1;
+    }
+    else if (strcmp (argvec[optind], "-B") == 0)
+    {
+      bufferall = 1;
+    }
+    else if (strcmp (argvec[optind], "-n") == 0)
+    {
+      forcenet = getoptval(argcount, argvec, optind++);
+    }
+    else if (strcmp (argvec[optind], "-l") == 0)
+    {
+      forceloc = getoptval(argcount, argvec, optind++);
+    }
+    else if (strcmp (argvec[optind], "-r") == 0)
+    {
+      packreclen = atoi (getoptval(argcount, argvec, optind++));
+    }
+    else if (strcmp (argvec[optind], "-e") == 0)
+    {
+      encoding = atoi (getoptval(argcount, argvec, optind++));
+    }
+    else if (strcmp (argvec[optind], "-b") == 0)
+    {
+      byteorder = atoi (getoptval(argcount, argvec, optind++));
+    }
+    else if (strcmp (argvec[optind], "-rfy") == 0)
+    {
+      retainfutureyear = 1;
+    }
+    else if (strcmp (argvec[optind], "-o") == 0)
+    {
+      outputfile = getoptval(argcount, argvec, optind++);
+    }
+    else if (strcmp (argvec[optind], "-T") == 0)
+    {
+      addmapnode (&chanlist, getoptval(argcount, argvec, optind++));
+    }
+    else if (strncmp (argvec[optind], "-", 1) == 0 &&
+             strlen (argvec[optind]) > 1 )
+    {
+      fprintf(stderr, "Unknown option: %s\n", argvec[optind]);
+      exit (1);
+    }
+    else
+    {
+      addnode (&filelist, NULL, argvec[optind]);
+    }
+  }
 
   /* Make sure an output file is specified if buffering all */
   if ( bufferall && ! outputfile )
-    {
-      fprintf (stderr, "Need to specify output file with -o if using -B\n");
-      exit(1);
-    }
+  {
+    fprintf (stderr, "Need to specify output file with -o if using -B\n");
+    exit(1);
+  }
 
   /* Make sure an input files were specified */
   if ( filelist == 0 )
-    {
-      fprintf (stderr, "No input files were specified\n\n");
-      fprintf (stderr, "%s version %s\n\n", PACKAGE, VERSION);
-      fprintf (stderr, "Try %s -h for usage\n", PACKAGE);
-      exit (1);
-    }
+  {
+    fprintf (stderr, "No input files were specified\n\n");
+    fprintf (stderr, "%s version %s\n\n", PACKAGE, VERSION);
+    fprintf (stderr, "Try %s -h for usage\n", PACKAGE);
+    exit (1);
+  }
 
   /* Report the program version */
   if ( verbose )
@@ -978,44 +978,44 @@ parameter_proc (int argcount, char **argvec)
   /* Check the input files for any list files, if any are found
    * remove them from the list and add the contained list */
   if ( filelist )
+  {
+    struct listnode *prevln, *ln;
+    char *lfname;
+
+    prevln = ln = filelist;
+    while ( ln != 0 )
     {
-      struct listnode *prevln, *ln;
-      char *lfname;
+      lfname = ln->data;
 
-      prevln = ln = filelist;
-      while ( ln != 0 )
-        {
-          lfname = ln->data;
+      if ( *lfname == '@' || ! strcasecmp (lfname,"filenr.lis") )
+      {
+        /* Remove this node from the list */
+        if ( ln == filelist )
+          filelist = ln->next;
+        else
+          prevln->next = ln->next;
 
-          if ( *lfname == '@' || ! strcasecmp (lfname,"filenr.lis") )
-            {
-              /* Remove this node from the list */
-              if ( ln == filelist )
-                filelist = ln->next;
-              else
-                prevln->next = ln->next;
+        /* Skip the '@' first character */
+        if ( *lfname == '@' )
+          lfname++;
 
-              /* Skip the '@' first character */
-              if ( *lfname == '@' )
-                lfname++;
+        /* Read list file */
+        readlistfile (lfname);
 
-              /* Read list file */
-              readlistfile (lfname);
+        /* Free memory for this node */
+        if ( ln->key )
+          free (ln->key);
+        free (ln->data);
+        free (ln);
+      }
+      else
+      {
+        prevln = ln;
+      }
 
-              /* Free memory for this node */
-              if ( ln->key )
-                free (ln->key);
-              free (ln->data);
-              free (ln);
-            }
-          else
-            {
-              prevln = ln;
-            }
-
-          ln = ln->next;
-        }
+      ln = ln->next;
     }
+  }
 
   return 0;
 }  /* End of parameter_proc() */
@@ -1081,76 +1081,76 @@ readlistfile (char *listfile)
 
   /* Open the list file */
   if ( (fp = fopen (listfile, "rb")) == NULL )
+  {
+    if (errno == ENOENT)
     {
-      if (errno == ENOENT)
-        {
-          fprintf (stderr, "Could not find list file %s\n", listfile);
-          return -1;
-        }
-      else
-        {
-          fprintf (stderr, "Error opening list file %s: %s\n",
-                   listfile, strerror (errno));
-          return -1;
-        }
+      fprintf (stderr, "Could not find list file %s\n", listfile);
+      return -1;
     }
+    else
+    {
+      fprintf (stderr, "Error opening list file %s: %s\n",
+               listfile, strerror (errno));
+      return -1;
+    }
+  }
 
   if ( verbose )
     fprintf (stderr, "Reading list of input files from %s\n", listfile);
 
   while ( (fgets (line, sizeof(line), fp)) !=  NULL)
+  {
+    /* Truncate line at first \r or \n, count space-separated fields
+     * and track last field */
+    fields = 0;
+    wspace = 0;
+    ptr = line;
+    while ( *ptr )
     {
-      /* Truncate line at first \r or \n, count space-separated fields
-       * and track last field */
-      fields = 0;
-      wspace = 0;
-      ptr = line;
-      while ( *ptr )
+      if ( *ptr == '\r' || *ptr == '\n' || *ptr == '\0' )
+      {
+        *ptr = '\0';
+        break;
+      }
+      else if ( *ptr != ' ' )
+      {
+        if ( wspace || ptr == line )
         {
-          if ( *ptr == '\r' || *ptr == '\n' || *ptr == '\0' )
-            {
-              *ptr = '\0';
-              break;
-            }
-          else if ( *ptr != ' ' )
-            {
-              if ( wspace || ptr == line )
-                {
-                  fields++; lastfield = ptr;
-                }
-              wspace = 0;
-            }
-          else
-            {
-              wspace = 1;
-            }
-
-          ptr++;
+          fields++; lastfield = ptr;
         }
+        wspace = 0;
+      }
+      else
+      {
+        wspace = 1;
+      }
 
-      /* Skip empty lines */
-      if ( ! lastfield )
-        continue;
-
-      if ( fields >= 1 && fields <= 3 )
-        {
-          fields = sscanf (lastfield, "%s", filename);
-
-          if ( fields != 1 )
-            {
-              fprintf (stderr, "Error parsing file name from: %s\n", line);
-              continue;
-            }
-
-          if ( verbose > 1 )
-            fprintf (stderr, "Adding '%s' to input file list\n", filename);
-
-          addnode (&filelist, NULL, filename);
-          filecnt++;
-
-          continue;
-        }
+      ptr++;
     }
+
+    /* Skip empty lines */
+    if ( ! lastfield )
+      continue;
+
+    if ( fields >= 1 && fields <= 3 )
+    {
+      fields = sscanf (lastfield, "%s", filename);
+
+      if ( fields != 1 )
+      {
+        fprintf (stderr, "Error parsing file name from: %s\n", line);
+        continue;
+      }
+
+      if ( verbose > 1 )
+        fprintf (stderr, "Adding '%s' to input file list\n", filename);
+
+      addnode (&filelist, NULL, filename);
+      filecnt++;
+
+      continue;
+    }
+  }
 
   fclose (fp);
 
@@ -1169,19 +1169,19 @@ addnode (struct listnode **listroot, char *key, char *data)
   struct listnode *lastlp, *newlp;
 
   if ( data == NULL )
-    {
-      fprintf (stderr, "addnode(): No file name specified\n");
-      return;
-    }
+  {
+    fprintf (stderr, "addnode(): No file name specified\n");
+    return;
+  }
 
   lastlp = *listroot;
   while ( lastlp != 0 )
-    {
-      if ( lastlp->next == 0 )
-        break;
+  {
+    if ( lastlp->next == 0 )
+      break;
 
-      lastlp = lastlp->next;
-    }
+    lastlp = lastlp->next;
+  }
 
   newlp = (struct listnode *) malloc (sizeof (struct listnode));
   memset (newlp, 0, sizeof (struct listnode));
@@ -1215,10 +1215,10 @@ addmapnode (struct listnode **listroot, char *mapping)
   data = strchr (mapping, '=');
 
   if ( ! data )
-    {
-      fprintf (stderr, "addmapmnode(): Cannot find '=' in mapping '%s'\n", mapping);
-      return;
-    }
+  {
+    fprintf (stderr, "addmapmnode(): Cannot find '=' in mapping '%s'\n", mapping);
+    return;
+  }
 
   *data++ = '\0';
 
@@ -1236,9 +1236,9 @@ static void
 record_handler (char *record, int reclen, void *handlerdata)
 {
   if ( fwrite(record, reclen, 1, ofp) != 1 )
-    {
-      fprintf (stderr, "Error writing to output file\n");
-    }
+  {
+    fprintf (stderr, "Error writing to output file\n");
+  }
 }  /* End of record_handler() */
 
 
