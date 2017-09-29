@@ -1,3 +1,7 @@
+2017.271: 1.8rc
+	- Add detection for case of record length one byte too many at end
+	of file, auto correct this invalid record length.
+
 2017.099: 1.7
 	- Update libmseed to 2.19.3.
 	- Remove dependency on ntwin32.mak for Windows nmake makefiles, now
