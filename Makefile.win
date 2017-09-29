@@ -4,14 +4,14 @@
 
 all: 
 	cd libmseed
-	nmake -f Makefile.win
+	nmake -NOLOGO -f Makefile.win
 	cd ..\src
-	nmake -f Makefile.win
+	nmake -NOLOGO -f Makefile.win
 	cd ..
 
 clean:
 	cd libmseed
-	nmake -f Makefile.win clean
+	nmake -NOLOGO -f Makefile.win clean
 	cd ..\src
-	nmake -f Makefile.win clean
+	nmake -NOLOGO -f Makefile.win clean
 	cd ..

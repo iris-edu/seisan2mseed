@@ -1,4 +1,4 @@
-2017.271: 1.8rc
+2017.271: 1.8
 	- Add detection for case of record length one byte too many at end
 	of file, auto correct this invalid record length.
 	- Add portability function for 64-bit file position, stop using off_t.
