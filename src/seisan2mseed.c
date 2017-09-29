@@ -37,6 +37,7 @@ static int readlistfile (char *listfile);
 static void addnode (struct listnode **listroot, char *key, char *data);
 static void addmapnode (struct listnode **listroot, char *mapping);
 static void record_handler (char *record, int reclen, void *handlerdata);
+static int64_t portable_ftell64 (FILE *stream);
 static void usage (void);
 
 static int   verbose     = 0;
@@ -183,7 +184,7 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
   uint32_t reclen4 = 0;
   uint32_t reclenmirror4 = 0;
   unsigned int reclen = 0;
-  off_t filepos;
+  int64_t filepos;
   struct stat sbuf;
 
   size_t readlen;
@@ -303,7 +304,7 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
   for (;;)
   {
     /* Get current file position */
-    filepos = lmp_ftello (ifp);
+    filepos = portable_ftell64 (ifp);
 
     /* Read next record length */
     if ( formatflag == 1 )
@@ -350,9 +351,8 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
     }
 
     if ( verbose > 2 )
-      fprintf (stderr, "Reading next record of length %d bytes from offset %lld (0x%llx) to %lld\n",
-               reclen, (long long) filepos, (long long) filepos,
-               (long long) filepos+reclen);
+      fprintf (stderr, "Reading next record of length %d bytes from offset %"PRId64" (0x%"PRIx64") to %"PRId64"\n",
+               reclen, filepos, filepos, filepos+reclen);
 
     /* Make sure enough memory is available */
     if ( reclen > recordbufsize )
@@ -393,7 +393,7 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
 
       if ( reclen1 != reclenmirror1 )
       {
-        fprintf (stderr, "At byte offset %lld in %s:\n", (long long) filepos, seisanfile);
+        fprintf (stderr, "At byte offset %"PRId64" in %s:\n", filepos, seisanfile);
         fprintf (stderr, "  Next and previous record length values do not match: %d != %d\n",
                  reclen1, reclenmirror1);
         break;
@@ -410,7 +410,7 @@ seisan2group (char *seisanfile, MSTraceGroup *mstg)
       if ( swapflag ) ms_gswap4 ( &reclenmirror4 );
       if ( reclen4 != reclenmirror4 )
       {
-        fprintf (stderr, "At byte offset %lld in %s:\n", (long long) filepos, seisanfile);
+        fprintf (stderr, "At byte offset %"PRId64" in %s:\n", filepos, seisanfile);
         fprintf (stderr, "  Next and previous record length values do not match: %d != %d\n",
                  reclen4, reclenmirror4);
         break;
@@ -1240,6 +1240,23 @@ record_handler (char *record, int reclen, void *handlerdata)
     fprintf (stderr, "Error writing to output file\n");
   }
 }  /* End of record_handler() */
+
+
+/***************************************************************************
+ * portable_ftell64:
+ * A portable file position function.
+ *
+ * Returns current position in file.
+ ***************************************************************************/
+static int64_t
+portable_ftell64 (FILE *stream)
+{
+#if defined(LMP_WIN)
+  return (int64_t) _ftelli64(stream);
+#else
+  return (int64_t) ftello (stream);
+#endif
+}  /* End of portable_ftell64() */
 
 
 /***************************************************************************
